@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Project xmlns="http://schemas.microsoft.com/project">
+  <Name>Projeto Sem Custo - Apenas Cronograma</Name>
+  <Title>Projeto Sem Custo - Apenas Cronograma</Title>
+  <StartDate>2026-05-01T08:00:00</StartDate>
+  <FinishDate>2026-08-15T17:00:00</FinishDate>
+  <StatusDate>2026-07-24T00:00:00</StatusDate>
+  <CurrentDate>2026-07-24T00:00:00</CurrentDate>
+  <Resources>
+    <Resource>
+      <UID>1</UID>
+      <Name>Ana Souza</Name>
+      <Work>PT640H0M0S</Work>
+    </Resource>
+  </Resources>
+  <Tasks>
+    <Task>
+      <UID>1</UID>
+      <ID>1</ID>
+      <Name>Levantamento de Requisitos</Name>
+      <OutlineLevel>1</OutlineLevel>
+      <Summary>0</Summary>
+      <Milestone>0</Milestone>
+      <Critical>1</Critical>
+      <PercentComplete>100</PercentComplete>
+      <Start>2026-05-01T08:00:00</Start>
+      <Finish>2026-05-15T17:00:00</Finish>
+      <BaselineStart>2026-05-01T08:00:00</BaselineStart>
+      <BaselineFinish>2026-05-15T17:00:00</BaselineFinish>
+      <ActualStart>2026-05-01T08:00:00</ActualStart>
+      <ActualFinish>2026-05-15T17:00:00</ActualFinish>
+      <Duration>PT80H0M0S</Duration>
+      <BaselineDuration>PT80H0M0S</BaselineDuration>
+      <ActualDuration>PT80H0M0S</ActualDuration>
+    </Task>
+    <Task>
+      <UID>2</UID>
+      <ID>2</ID>
+      <Name>Configuração do Sistema</Name>
+      <OutlineLevel>1</OutlineLevel>
+      <Summary>0</Summary>
+      <Milestone>0</Milestone>
+      <Critical>1</Critical>
+      <PercentComplete>80</PercentComplete>
+      <Start>2026-05-16T08:00:00</Start>
+      <Finish>2026-07-05T17:00:00</Finish>
+      <BaselineStart>2026-05-16T08:00:00</BaselineStart>
+      <BaselineFinish>2026-06-25T17:00:00</BaselineFinish>
+      <ActualStart>2026-05-16T08:00:00</ActualStart>
+      <Duration>PT320H0M0S</Duration>
+      <BaselineDuration>PT280H0M0S</BaselineDuration>
+      <ActualDuration>PT260H0M0S</ActualDuration>
+    </Task>
+    <Task>
+      <UID>3</UID>
+      <ID>3</ID>
+      <Name>Migração de Dados</Name>
+      <OutlineLevel>1</OutlineLevel>
+      <Summary>0</Summary>
+      <Milestone>0</Milestone>
+      <Critical>1</Critical>
+      <PercentComplete>40</PercentComplete>
+      <Start>2026-07-06T08:00:00</Start>
+      <Finish>2026-07-30T17:00:00</Finish>
+      <BaselineStart>2026-06-26T08:00:00</BaselineStart>
+      <BaselineFinish>2026-07-17T17:00:00</BaselineFinish>
+      <ActualStart>2026-07-06T08:00:00</ActualStart>
+      <Duration>PT160H0M0S</Duration>
+      <BaselineDuration>PT160H0M0S</BaselineDuration>
+      <ActualDuration>PT60H0M0S</ActualDuration>
+    </Task>
+    <Task>
+      <UID>4</UID>
+      <ID>4</ID>
+      <Name>Testes de Aceitação</Name>
+      <OutlineLevel>1</OutlineLevel>
+      <Summary>0</Summary>
+      <Milestone>0</Milestone>
+      <Critical>0</Critical>
+      <PercentComplete>0</PercentComplete>
+      <Start>2026-07-31T08:00:00</Start>
+      <Finish>2026-08-10T17:00:00</Finish>
+      <BaselineStart>2026-07-18T08:00:00</BaselineStart>
+      <BaselineFinish>2026-07-30T17:00:00</BaselineFinish>
+      <Duration>PT80H0M0S</Duration>
+      <BaselineDuration>PT80H0M0S</BaselineDuration>
+    </Task>
+  </Tasks>
+  <Assignments>
+    <Assignment>
+      <TaskUID>1</TaskUID>
+      <ResourceUID>1</ResourceUID>
+    </Assignment>
+  </Assignments>
+</Project>

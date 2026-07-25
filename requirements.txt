@@ -1,0 +1,10 @@
+streamlit>=1.36
+pandas>=2.2
+plotly>=5.22
+openpyxl>=3.1
+reportlab>=4.2
+matplotlib>=3.9
+
+# Opcional: suporte a arquivos .mpp (requer Java instalado na máquina)
+# mpxj>=13.0
+# JPype1>=1.5
