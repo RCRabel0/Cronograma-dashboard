@@ -349,6 +349,12 @@ with aba_tarefas:
         tabela.style.apply(_destacar_linha, axis=1),
         hide_index=True,
         width="stretch",
+        column_config={
+            "Início": st.column_config.DateColumn(format=formato_coluna_data(idioma)),
+            "Término": st.column_config.DateColumn(format=formato_coluna_data(idioma)),
+            "Início (linha de base)": st.column_config.DateColumn(format=formato_coluna_data(idioma)),
+            "Término (linha de base)": st.column_config.DateColumn(format=formato_coluna_data(idioma)),
+        },
     )
     st.caption(
         t("🟪 Roxo = tarefa crítica · 🟥 Vermelho = atrasada · Vermelho mais forte = crítica e atrasada.", idioma)
@@ -437,7 +443,17 @@ with aba_tarefas:
         with col_plan:
             st.markdown(f"**{tf('Planejadas no período ({n})', idioma, n=len(tarefas_planejadas))}**")
             st.caption(t("Tarefas cujo cronograma atual (Início/Término vigentes) cruza o período selecionado.", idioma))
-            st.dataframe(df_planejadas, hide_index=True, width="stretch")
+            st.dataframe(
+                df_planejadas,
+                hide_index=True,
+                width="stretch",
+                column_config={
+                    "Início": st.column_config.DateColumn(format=formato_coluna_data(idioma)),
+                    "Término": st.column_config.DateColumn(format=formato_coluna_data(idioma)),
+                    "Início Real": st.column_config.DateColumn(format=formato_coluna_data(idioma)),
+                    "Término Real": st.column_config.DateColumn(format=formato_coluna_data(idioma)),
+                },
+            )
             st.download_button(
                 t("⬇️ Baixar planejadas (Excel)", idioma),
                 data=gerar_excel_tabela(df_planejadas, "Planejadas"),
@@ -447,7 +463,17 @@ with aba_tarefas:
         with col_exec:
             st.markdown(f"**{tf('Executadas no período ({n})', idioma, n=len(tarefas_executadas))}**")
             st.caption(t("Tarefas com Início Real e Término Real registrados (já concluídas) que cruzam o período selecionado.", idioma))
-            st.dataframe(df_executadas, hide_index=True, width="stretch")
+            st.dataframe(
+                df_executadas,
+                hide_index=True,
+                width="stretch",
+                column_config={
+                    "Início": st.column_config.DateColumn(format=formato_coluna_data(idioma)),
+                    "Término": st.column_config.DateColumn(format=formato_coluna_data(idioma)),
+                    "Início Real": st.column_config.DateColumn(format=formato_coluna_data(idioma)),
+                    "Término Real": st.column_config.DateColumn(format=formato_coluna_data(idioma)),
+                },
+            )
             st.download_button(
                 t("⬇️ Baixar executadas (Excel)", idioma),
                 data=gerar_excel_tabela(df_executadas, "Executadas"),
