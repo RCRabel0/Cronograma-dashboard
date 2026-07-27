@@ -4,7 +4,7 @@ import pandas as pd
 from openpyxl.chart import LineChart, Reference
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
 from reportlab.platypus import (
     Image,
@@ -265,19 +265,29 @@ def gerar_pdf_portfolio(tabela_comparativa: pd.DataFrame, consolidado: dict, cur
 
     elementos.append(Paragraph("Comparativo entre Projetos", estilos["Heading2"]))
     colunas = list(tabela_comparativa.columns)
-    dados_tabela = [colunas]
+
+    estilo_cabecalho = ParagraphStyle("cabecalho_comp", parent=estilos["Normal"], fontSize=7, textColor=colors.white, leading=8.5)
+    estilo_celula = ParagraphStyle("celula_comp", parent=estilos["Normal"], fontSize=7, leading=8.5)
+
+    # A coluna "Projeto" recebe mais espaço (nomes longos); as demais, colunas estreitas
+    # e numéricas, dividem o restante — todas usando Paragraph para quebrar linha em vez
+    # de estourar e sobrepor o texto da coluna vizinha.
+    largura_projeto = 5 * cm
+    largura_restante = (17 * cm - largura_projeto) / (len(colunas) - 1)
+    larguras = [largura_projeto if c == colunas[0] else largura_restante for c in colunas]
+
+    dados_tabela = [[Paragraph(str(c), estilo_cabecalho) for c in colunas]]
     for _, linha in tabela_comparativa.iterrows():
-        dados_tabela.append([str(v) if v is not None else "N/D" for v in linha])
-    largura_coluna = 16 * cm / len(colunas)
-    tabela_comp = Table(dados_tabela, colWidths=[largura_coluna] * len(colunas), repeatRows=1)
+        dados_tabela.append([Paragraph(str(v) if v is not None else "N/D", estilo_celula) for v in linha])
+
+    tabela_comp = Table(dados_tabela, colWidths=larguras, repeatRows=1)
     tabela_comp.setStyle(
         TableStyle(
             [
                 ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2E4053")),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
                 ("GRID", (0, 0), (-1, -1), 0.4, colors.grey),
-                ("FONTSIZE", (0, 0), (-1, -1), 7),
                 ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.white]),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
             ]
         )
     )
