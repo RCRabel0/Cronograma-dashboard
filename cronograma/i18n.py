@@ -171,15 +171,13 @@ TRADUCOES: dict[str, str] = {
 
     # --- Checklist ---
     "Checklist de Qualidade do Cronograma": "Schedule Quality Checklist",
-    "Itens marcados automaticamente foram avaliados a partir dos dados do arquivo. "
-    "Itens manuais dependem do seu julgamento — responda-os para que entrem na pontuação.":
-        "Items marked automatically were assessed from the file's data. "
-        "Manual items depend on your judgment — answer them so they count toward the score.",
+    "Itens avaliados automaticamente a partir dos dados do arquivo.":
+        "Items assessed automatically from the file's data.",
     "Pontuação": "Score",
     "Percentual": "Percentage",
     "Maturidade": "Maturity",
-    "{avaliados} de {total} itens contam na pontuação ({pendentes} item(ns) manual(is) ainda não avaliado(s)).":
-        "{avaliados} of {total} items count toward the score ({pendentes} manual item(s) not yet assessed).",
+    "{avaliados} de {total} itens contam na pontuação.":
+        "{avaliados} of {total} items count toward the score.",
     "Tabela de classificação de maturidade": "Maturity classification table",
     "Abaixo de 50%": "Below 50%",
     "Excelente": "Excellent",
@@ -191,14 +189,10 @@ TRADUCOES: dict[str, str] = {
     "Parcial": "Partial",
     "Não Conforme": "Non-compliant",
     "N/A": "N/A",
-    "Não avaliado": "Not assessed",
     "⬇️ Baixar checklist (Excel)": "⬇️ Download checklist (Excel)",
     "Seção": "Section",
     "Item": "Item",
-    "Tipo": "Type",
     "Evidência": "Evidence",
-    "Automático": "Automatic",
-    "Manual": "Manual",
 
     # --- Recursos ---
     "Recursos": "Resources",
@@ -295,26 +289,20 @@ TRADUCOES: dict[str, str] = {
     "2. Atividades": "2. Activities",
     "3. Relacionamentos": "3. Relationships",
     "4. Restrições": "4. Constraints",
-    "5. Calendário": "5. Calendar",
-    "6. Recursos": "6. Resources",
-    "7. Custos (quando utilizados)": "7. Costs (when used)",
-    "8. Linha de Base (Baseline)": "8. Baseline",
-    "9. Caminho Crítico": "9. Critical Path",
-    "10. Atualização": "10. Status Update",
-    "11. Indicadores": "11. Indicators",
-    "12. Qualidade do Planejamento": "12. Planning Quality",
-    "13. Governança": "13. Governance",
-    "14. Campos Personalizados (opcional)": "14. Custom Fields (optional)",
-    "15. Auditoria Final": "15. Final Audit",
+    "5. Recursos": "5. Resources",
+    "6. Custos (quando utilizados)": "6. Costs (when used)",
+    "7. Linha de Base (Baseline)": "7. Baseline",
+    "8. Caminho Crítico": "8. Critical Path",
+    "9. Atualização": "9. Status Update",
+    "10. Indicadores": "10. Indicators",
+    "11. Qualidade do Planejamento": "11. Planning Quality",
+    "12. Governança": "12. Governance",
+    "13. Auditoria Final": "13. Final Audit",
 
     # --- Checklist: seção 1 ---
-    "Todas as entregas do projeto estão representadas.": "All project deliverables are represented.",
     "Existe uma Estrutura Analítica do Projeto (EAP/WBS).": "There is a Work Breakdown Structure (WBS).",
     "As atividades estão organizadas em fases.": "Activities are organized into phases.",
-    "Existem tarefas-resumo apenas para agrupamento.": "Summary tasks exist only for grouping.",
     "Não existem atividades órfãs.": "There are no orphan activities.",
-    "O nível de detalhamento está adequado.": "The level of detail is adequate.",
-    "Todas as atividades possuem nome claro utilizando verbo + objeto.": "All activities have a clear name using verb + object.",
     "Hierarquia de níveis (OutlineLevel) encontrada no arquivo.": "Level hierarchy (OutlineLevel) found in the file.",
     "Nenhuma hierarquia de níveis encontrada.": "No level hierarchy found.",
     "Tarefas-resumo (fases/grupos) encontradas.": "Summary tasks (phases/groups) found.",
@@ -330,7 +318,6 @@ TRADUCOES: dict[str, str] = {
     "{n} de {total} tarefas com duração acima de 20 dias úteis (assumindo 8h/dia).": "{n} of {total} tasks with duration above 20 working days (assuming 8h/day).",
     "Não existem atividades excessivamente curtas sem necessidade.": "There are no unnecessarily short activities.",
     "{n} de {total} tarefas com menos de 1 hora de duração (avalie se fazem sentido).": "{n} of {total} tasks with less than 1 hour of duration (assess whether they make sense).",
-    "Existem marcos apenas quando realmente representam entregas.": "Milestones exist only when they truly represent deliverables.",
     "Os marcos possuem duração zero.": "Milestones have zero duration.",
     "{n} de {total_marcos} marcos com duração diferente de zero.": "{n} of {total_marcos} milestones with duration other than zero.",
     "Nenhum marco encontrado no arquivo.": "No milestone found in the file.",
@@ -342,16 +329,8 @@ TRADUCOES: dict[str, str] = {
     "{n} de {total} tarefas sem sucessora (a última tarefa do cronograma normalmente não tem).": "{n} of {total} tasks without a successor (the last task in the schedule normally doesn't have one).",
     "Não existem atividades soltas.": "There are no disconnected activities.",
     "{n} de {total} tarefas sem predecessora E sem sucessora ao mesmo tempo.": "{n} of {total} tasks with no predecessor AND no successor at the same time.",
-    "O tipo de relacionamento está correto (FS/SS/FF/SF). Distribuição encontrada: {dist}.": "The relationship type is correct (FS/SS/FF/SF). Distribution found: {dist}.",
-    "Leads e Lags foram utilizados somente quando necessários.": "Leads and lags were used only when necessary.",
-    "Não existem lags excessivos.": "There are no excessive lags.",
     "Não existem relacionamentos redundantes.": "There are no redundant relationships.",
     "{n} vínculo(s) duplicado(s) encontrado(s).": "{n} duplicate link(s) found.",
-    "Término-Término (FF)": "Finish-to-Finish (FF)",
-    "Término-Início (FS)": "Finish-to-Start (FS)",
-    "Início-Término (SF)": "Start-to-Finish (SF)",
-    "Início-Início (SS)": "Start-to-Start (SS)",
-    "nenhum vínculo encontrado": "no link found",
 
     # --- Checklist: seção 4 ---
     "As atividades utilizam ASAP (As Soon As Possible) sempre que possível.": "Activities use ASAP (As Soon As Possible) whenever possible.",
@@ -362,33 +341,20 @@ TRADUCOES: dict[str, str] = {
     "{n} de {total} tarefas em modo de agendamento manual.": "{n} of {total} tasks in manual scheduling mode.",
 
     # --- Checklist: seção 5 ---
-    "O calendário do projeto está correto.": "The project calendar is correct.",
-    "Calendários de recursos foram definidos quando necessário.": "Resource calendars were defined when necessary.",
-    "Feriados estão cadastrados.": "Holidays are registered.",
-    "Jornadas especiais estão configuradas.": "Special work schedules are configured.",
-    "Não existem calendários incorretos atribuídos.": "There are no incorrectly assigned calendars.",
-
-    # --- Checklist: seção 6 ---
     "Todas as atividades possuem responsável.": "All activities have an owner.",
     "{n} de {total} tarefas (não-marco) sem recurso atribuído.": "{n} of {total} tasks (non-milestone) without an assigned resource.",
-    "Recursos estão corretamente cadastrados.": "Resources are correctly registered.",
     "Não existem recursos duplicados.": "There are no duplicate resources.",
     "{n} nome(s) de recurso duplicado(s) de {total} recurso(s).": "{n} duplicate resource name(s) out of {total} resource(s).",
-    "As unidades de alocação estão corretas.": "The allocation units are correct.",
-    "Não existem superalocações sem tratamento.": "There are no unresolved overallocations.",
-    "Recursos genéricos estão identificados.": "Generic resources are identified.",
 
-    # --- Checklist: seção 7 ---
+    # --- Checklist: seção 6 ---
     "Recursos possuem custo.": "Resources have a cost.",
     "{n} de {total} recursos sem custo definido.": "{n} of {total} resources without a defined cost.",
     "Arquivo não tem custos de recursos preenchidos.": "The file has no resource costs filled in.",
-    "Custos fixos foram cadastrados quando necessário.": "Fixed costs were registered when necessary.",
     "Baseline de custo foi salva.": "Cost baseline was saved.",
     "Custo de linha de base encontrado.": "Baseline cost found.",
     "Nenhum custo de linha de base encontrado.": "No baseline cost found.",
-    "Fluxo financeiro acompanha o cronograma.": "Cash flow follows the schedule.",
 
-    # --- Checklist: seção 8 ---
+    # --- Checklist: seção 7 ---
     "Baseline foi salva.": "Baseline was saved.",
     "{n} de {total} tarefas com linha de base identificada.": "{n} of {total} tasks with an identified baseline.",
     "Data inicial da baseline existe.": "Baseline start date exists.",
@@ -400,11 +366,9 @@ TRADUCOES: dict[str, str] = {
     "Nenhuma duração de linha de base encontrada.": "No baseline duration found.",
     "Custo baseline registrado.": "Baseline cost recorded.",
 
-    # --- Checklist: seção 9 ---
+    # --- Checklist: seção 8 ---
     "Caminho crítico identificado.": "Critical path identified.",
     "{n} de {total} tarefas marcadas como críticas.": "{n} of {total} tasks marked as critical.",
-    "O caminho crítico faz sentido.": "The critical path makes sense.",
-    "Não existem vários caminhos críticos sem justificativa.": "There are no multiple critical paths without justification.",
     "Float Total (folga) foi analisado.": "Total Float (slack) was analyzed.",
     "Folga total disponível em {n} de {total} tarefas.": "Total float available in {n} of {total} tasks.",
     "Folga total não encontrada no arquivo.": "Total float not found in the file.",
@@ -412,7 +376,7 @@ TRADUCOES: dict[str, str] = {
     "{n} tarefa(s) com folga total negativa.": "{n} task(s) with negative total float.",
     "N/A — folga total não disponível no arquivo.": "N/A — total float not available in the file.",
 
-    # --- Checklist: seção 10 ---
+    # --- Checklist: seção 9 ---
     "Data de Status definida.": "Status Date defined.",
     "Data de status: {data}": "Status date: {data}",
     "Nenhuma data de status encontrada.": "No status date found.",
@@ -421,13 +385,12 @@ TRADUCOES: dict[str, str] = {
     "Nenhuma tarefa com progresso registrado.": "No task with recorded progress.",
     "% Completo coerente com a data de status.": "% Complete consistent with the status date.",
     "{n} de {total} tarefas com início futuro (após a data de status) e progresso maior que zero.": "{n} of {total} tasks with a future start (after the status date) and progress greater than zero.",
-    "Trabalho restante atualizado.": "Remaining work updated.",
     "Atividades concluídas possuem data real de término.": "Completed activities have an actual finish date.",
     "{n} de {total_concluidas} tarefas concluídas sem Término Real registrado.": "{n} of {total_concluidas} completed tasks without a recorded Actual Finish.",
     "Atividades futuras não possuem progresso indevido.": "Future activities have no undue progress.",
     "{n} de {total} tarefas com início futuro e progresso indevido.": "{n} of {total} tasks with a future start and undue progress.",
 
-    # --- Checklist: seção 11 ---
+    # --- Checklist: seção 10 ---
     "SPI calculado.": "SPI calculated.",
     "SPI não pôde ser calculado (sem baseline).": "SPI could not be calculated (no baseline).",
     "CPI calculado (quando aplicável).": "CPI calculated (when applicable).",
@@ -438,10 +401,8 @@ TRADUCOES: dict[str, str] = {
     "Custo Real acumulado: {ac:,.2f}.": "Cumulative Actual Cost: {ac:,.2f}.",
     "Curva S disponível.": "S-Curve available.",
     "Gerada automaticamente na aba Curva S deste programa.": "Automatically generated in this program's S-Curve tab.",
-    "Marcos estratégicos monitorados.": "Strategic milestones monitored.",
-    "Aderência ao cronograma monitorada.": "Schedule adherence monitored.",
 
-    # --- Checklist: seção 12 ---
+    # --- Checklist: seção 11 ---
     "Não existem tarefas manuais.": "There are no manually scheduled tasks.",
     "{n} de {total} tarefas em modo manual.": "{n} of {total} tasks in manual mode.",
     "Todas as tarefas estão em modo automático.": "All tasks are in automatic mode.",
@@ -450,42 +411,21 @@ TRADUCOES: dict[str, str] = {
     "Não existem atividades duplicadas.": "There are no duplicate activities.",
     "{n} nome(s) de tarefa duplicado(s) de {total}.": "{n} duplicate task name(s) out of {total}.",
     "Não existem durações muito elevadas.": "There are no excessively high durations.",
-    "Dependências fazem sentido lógico.": "Dependencies make logical sense.",
-    "O cronograma pode ser recalculado sem erros (não verificável a partir de um arquivo exportado; confirme no MS Project).": "The schedule can be recalculated without errors (not verifiable from an exported file; confirm in MS Project).",
 
-    # --- Checklist: seção 13 ---
+    # --- Checklist: seção 12 ---
     "Código WBS preenchido.": "WBS code filled in.",
     "{n} de {total} tarefas com código WBS preenchido.": "{n} of {total} tasks with a WBS code filled in.",
     "ID da atividade definido.": "Activity ID defined.",
     "Todas as tarefas possuem ID único atribuído pelo MS Project.": "All tasks have a unique ID assigned by MS Project.",
     "Responsável informado.": "Owner informed.",
-    "Disciplina identificada.": "Discipline identified.",
     "Fase do projeto definida.": "Project phase defined.",
-    "Pacote de trabalho identificado.": "Work package identified.",
-    "Marco contratual identificado.": "Contractual milestone identified.",
-    "Marco executivo identificado.": "Executive milestone identified.",
-    "Cliente aprovou a versão.": "Client approved the version.",
-    "Versão do cronograma registrada.": "Schedule version recorded.",
+    "Tarefas-resumo (fases) encontradas.": "Summary tasks (phases) found.",
+    "Nenhuma tarefa-resumo encontrada.": "No summary task found.",
 
-    # --- Checklist: seção 14 (campos personalizados) ---
-    "Peso físico.": "Physical weight.",
-    "Criticidade.": "Criticality.",
-    "Prioridade.": "Priority.",
-    "Área responsável.": "Responsible area.",
-    "Status (Verde/Amarelo/Vermelho).": "Status (Green/Yellow/Red).",
-    "Risco associado.": "Associated risk.",
-    "Percentual planejado.": "Planned percentage.",
-    "Percentual realizado.": "Actual percentage.",
-    "Data da última atualização.": "Date of last update.",
-
-    # --- Checklist: seção 15 ---
+    # --- Checklist: seção 13 ---
     "Não existem atividades sem predecessor.": "There are no activities without a predecessor.",
     "Não existem atividades sem sucessor (exceto a última).": "There are no activities without a successor (except the last one).",
     "Não existem restrições indevidas.": "There are no undue constraints.",
-    "Não existem recursos superalocados.": "There are no overallocated resources.",
     "Baseline salva.": "Baseline saved.",
-    "Caminho crítico validado.": "Critical path validated.",
-    "Calendário correto.": "Calendar correct.",
     "Data de Status atualizada.": "Status Date updated.",
-    "Cronograma aprovado.": "Schedule approved.",
 }

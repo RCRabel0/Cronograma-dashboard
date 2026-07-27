@@ -7,7 +7,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-from cronograma.checklist import OPCOES_MANUAL, avaliar_checklist, calcular_pontuacao
+from cronograma.checklist import avaliar_checklist, calcular_pontuacao
 from cronograma.curva_s import gerar_curva_s
 from cronograma.i18n import formatar_data, formato_coluna_data, t, tf
 from cronograma.leitor_mpp import MpxjIndisponivelError, ler_mpp
@@ -699,20 +699,11 @@ with aba_gantt:
 with aba_checklist:
     st.subheader(t("Checklist de Qualidade do Cronograma", idioma))
     st.caption(
-        t(
-            "Itens marcados automaticamente foram avaliados a partir dos dados do arquivo. "
-            "Itens manuais dependem do seu julgamento — responda-os para que entrem na pontuação.",
-            idioma,
-        )
+        t("Itens avaliados automaticamente a partir dos dados do arquivo.", idioma)
     )
 
     itens_checklist = avaliar_checklist(projeto, indicadores, idioma=idioma)
-    respostas_manuais = {
-        item.chave: st.session_state.get(f"chk_{item.chave}", "Não avaliado")
-        for item in itens_checklist
-        if item.tipo == "manual"
-    }
-    resultado_checklist = calcular_pontuacao(itens_checklist, respostas_manuais)
+    resultado_checklist = calcular_pontuacao(itens_checklist)
 
     c1, c2, c3 = st.columns(3)
     c1.metric(t("Pontuação", idioma), f"{resultado_checklist['pontos']} / {resultado_checklist['maximo']}")
@@ -721,11 +712,10 @@ with aba_checklist:
     st.progress(min(resultado_checklist["percentual"] / 100, 1.0))
     st.caption(
         tf(
-            "{avaliados} de {total} itens contam na pontuação ({pendentes} item(ns) manual(is) ainda não avaliado(s)).",
+            "{avaliados} de {total} itens contam na pontuação.",
             idioma,
             avaliados=resultado_checklist["itens_avaliados"],
             total=resultado_checklist["total_itens"],
-            pendentes=resultado_checklist["itens_nao_avaliados"],
         )
     )
 
@@ -754,19 +744,9 @@ with aba_checklist:
     for secao, itens_secao in secoes_checklist.items():
         with st.expander(secao):
             for item in itens_secao:
-                if item.tipo == "auto":
-                    st.markdown(f"{icones_status.get(item.status, '➖')} {item.texto}")
-                    if item.evidencia:
-                        st.caption(item.evidencia)
-                else:
-                    st.segmented_control(
-                        item.texto,
-                        OPCOES_MANUAL,
-                        key=f"chk_{item.chave}",
-                        default="Não avaliado",
-                        required=True,
-                        format_func=lambda opt: t(opt, idioma),
-                    )
+                st.markdown(f"{icones_status.get(item.status, '➖')} {item.texto}")
+                if item.evidencia:
+                    st.caption(item.evidencia)
 
     st.divider()
     df_checklist = pd.DataFrame(
@@ -774,8 +754,7 @@ with aba_checklist:
             {
                 "Seção": item.secao,
                 "Item": item.texto,
-                "Tipo": "Automático" if item.tipo == "auto" else "Manual",
-                "Status": item.status if item.tipo == "auto" else respostas_manuais.get(item.chave, "Não avaliado"),
+                "Status": item.status,
                 "Evidência": item.evidencia,
             }
             for item in itens_checklist
