@@ -43,6 +43,23 @@ def _classificar_taxa(qtd_problema: int, total: int, limite_parcial_pct: float =
     return "Não Conforme"
 
 
+def _listar_tarefas(tarefas_problema: list[Tarefa], idioma: str, limite: int = 15) -> str:
+    nomes = [f"{tarefa.id} - {tarefa.nome}" for tarefa in tarefas_problema]
+    if len(nomes) > limite:
+        restantes = len(nomes) - limite
+        return "; ".join(nomes[:limite]) + " " + tf("(e mais {n} tarefa(s))", idioma, n=restantes)
+    return "; ".join(nomes)
+
+
+def _evidencia(template_base: str, idioma: str, tarefas_problema: list[Tarefa] | None = None, **kwargs) -> str:
+    """Monta o texto de evidência e, quando há tarefas com problema, anexa a lista
+    delas (ID - Nome) para indicar exatamente onde está o erro no cronograma."""
+    texto = tf(template_base, idioma, **kwargs)
+    if tarefas_problema:
+        texto += " " + tf("Tarefas: {lista}", idioma, lista=_listar_tarefas(tarefas_problema, idioma))
+    return texto
+
+
 def avaliar_checklist(projeto: Projeto, indicadores: Indicadores, idioma: str = "pt") -> list[ItemChecklist]:
     itens: list[ItemChecklist] = []
     tarefas = projeto.tarefas_detalhe
@@ -87,34 +104,34 @@ def avaliar_checklist(projeto: Projeto, indicadores: Indicadores, idioma: str = 
     auto(
         s, "Não existem atividades órfãs.",
         _classificar_taxa(len(orfas), total),
-        tf("{n} de {total} tarefas sem predecessora e sem sucessora.", idioma, n=len(orfas), total=total),
+        _evidencia("{n} de {total} tarefas sem predecessora e sem sucessora.", idioma, orfas, n=len(orfas), total=total),
     )
 
     # 2. Atividades
     s = "2. Atividades"
     sem_duracao = [t for t in tarefas if not t.marco and t.duracao_horas <= 0]
-    auto(s, "Todas as atividades possuem duração.", _classificar_taxa(len(sem_duracao), total), tf("{n} de {total} tarefas (não-marco) sem duração.", idioma, n=len(sem_duracao), total=total))
+    auto(s, "Todas as atividades possuem duração.", _classificar_taxa(len(sem_duracao), total), _evidencia("{n} de {total} tarefas (não-marco) sem duração.", idioma, sem_duracao, n=len(sem_duracao), total=total))
     negativas = [t for t in tarefas if t.duracao_horas < 0]
-    auto(s, "Não existem atividades com duração negativa.", "Conforme" if not negativas else "Não Conforme", tf("{n} tarefa(s) com duração negativa.", idioma, n=len(negativas)))
+    auto(s, "Não existem atividades com duração negativa.", "Conforme" if not negativas else "Não Conforme", _evidencia("{n} tarefa(s) com duração negativa.", idioma, negativas, n=len(negativas)))
     longas = [t for t in tarefas if not t.marco and t.duracao_horas / 8 > 20]
-    auto(s, "Não existem atividades excessivamente longas (ex.: >20 dias).", _classificar_taxa(len(longas), total), tf("{n} de {total} tarefas com duração acima de 20 dias úteis (assumindo 8h/dia).", idioma, n=len(longas), total=total))
+    auto(s, "Não existem atividades excessivamente longas (ex.: >20 dias).", _classificar_taxa(len(longas), total), _evidencia("{n} de {total} tarefas com duração acima de 20 dias úteis (assumindo 8h/dia).", idioma, longas, n=len(longas), total=total))
     curtas = [t for t in tarefas if not t.marco and 0 < t.duracao_horas < 1]
-    auto(s, "Não existem atividades excessivamente curtas sem necessidade.", _classificar_taxa(len(curtas), total, limite_parcial_pct=10, limite_nc_pct=25), tf("{n} de {total} tarefas com menos de 1 hora de duração (avalie se fazem sentido).", idioma, n=len(curtas), total=total))
+    auto(s, "Não existem atividades excessivamente curtas sem necessidade.", _classificar_taxa(len(curtas), total, limite_parcial_pct=10, limite_nc_pct=25), _evidencia("{n} de {total} tarefas com menos de 1 hora de duração (avalie se fazem sentido).", idioma, curtas, n=len(curtas), total=total))
     marcos = [t for t in tarefas if t.marco]
     marcos_com_duracao = [t for t in marcos if t.duracao_horas != 0]
     auto(
         s, "Os marcos possuem duração zero.",
         _classificar_taxa(len(marcos_com_duracao), len(marcos)) if marcos else "N/A",
-        tf("{n} de {total_marcos} marcos com duração diferente de zero.", idioma, n=len(marcos_com_duracao), total_marcos=len(marcos)) if marcos else t("Nenhum marco encontrado no arquivo.", idioma),
+        _evidencia("{n} de {total_marcos} marcos com duração diferente de zero.", idioma, marcos_com_duracao, n=len(marcos_com_duracao), total_marcos=len(marcos)) if marcos else t("Nenhum marco encontrado no arquivo.", idioma),
     )
 
     # 3. Relacionamentos
     s = "3. Relacionamentos"
     sem_pred = [t for t in tarefas if not tem_predecessora(t)]
-    auto(s, "Todas as atividades possuem predecessora.", _classificar_taxa(len(sem_pred), total, limite_parcial_pct=10, limite_nc_pct=25), tf("{n} de {total} tarefas sem predecessora (a primeira tarefa do cronograma normalmente não tem).", idioma, n=len(sem_pred), total=total))
+    auto(s, "Todas as atividades possuem predecessora.", _classificar_taxa(len(sem_pred), total, limite_parcial_pct=10, limite_nc_pct=25), _evidencia("{n} de {total} tarefas sem predecessora (a primeira tarefa do cronograma normalmente não tem).", idioma, sem_pred, n=len(sem_pred), total=total))
     sem_suc = [t for t in tarefas if not tem_sucessora(t)]
-    auto(s, "Todas possuem sucessora (exceto a última).", _classificar_taxa(len(sem_suc), total, limite_parcial_pct=10, limite_nc_pct=25), tf("{n} de {total} tarefas sem sucessora (a última tarefa do cronograma normalmente não tem).", idioma, n=len(sem_suc), total=total))
-    auto(s, "Não existem atividades soltas.", _classificar_taxa(len(orfas), total), tf("{n} de {total} tarefas sem predecessora E sem sucessora ao mesmo tempo.", idioma, n=len(orfas), total=total))
+    auto(s, "Todas possuem sucessora (exceto a última).", _classificar_taxa(len(sem_suc), total, limite_parcial_pct=10, limite_nc_pct=25), _evidencia("{n} de {total} tarefas sem sucessora (a última tarefa do cronograma normalmente não tem).", idioma, sem_suc, n=len(sem_suc), total=total))
+    auto(s, "Não existem atividades soltas.", _classificar_taxa(len(orfas), total), _evidencia("{n} de {total} tarefas sem predecessora E sem sucessora ao mesmo tempo.", idioma, orfas, n=len(orfas), total=total))
     vinculos_vistos = set()
     redundantes = 0
     for tarefa_dep in tarefas:
@@ -128,16 +145,16 @@ def avaliar_checklist(projeto: Projeto, indicadores: Indicadores, idioma: str = 
     # 4. Restrições
     s = "4. Restrições"
     nao_asap = [t for t in tarefas if t.tipo_restricao != 0]
-    auto(s, "As atividades utilizam ASAP (As Soon As Possible) sempre que possível.", _classificar_taxa(len(nao_asap), total, limite_parcial_pct=10, limite_nc_pct=25), tf("{n} de {total} tarefas com restrição diferente de ASAP.", idioma, n=len(nao_asap), total=total))
+    auto(s, "As atividades utilizam ASAP (As Soon As Possible) sempre que possível.", _classificar_taxa(len(nao_asap), total, limite_parcial_pct=10, limite_nc_pct=25), _evidencia("{n} de {total} tarefas com restrição diferente de ASAP.", idioma, nao_asap, n=len(nao_asap), total=total))
     rigidas = [t for t in tarefas if t.tipo_restricao in (2, 3)]
-    auto(s, "Não existem restrições rígidas desnecessárias (Must Start On / Must Finish On).", _classificar_taxa(len(rigidas), total), tf("{n} de {total} tarefas com restrição rígida (MSO/MFO).", idioma, n=len(rigidas), total=total))
+    auto(s, "Não existem restrições rígidas desnecessárias (Must Start On / Must Finish On).", _classificar_taxa(len(rigidas), total), _evidencia("{n} de {total} tarefas com restrição rígida (MSO/MFO).", idioma, rigidas, n=len(rigidas), total=total))
     manuais = [t for t in tarefas if t.manual]
-    auto(s, "Datas foram controladas pelo vínculo e não digitadas manualmente.", _classificar_taxa(len(manuais), total, limite_parcial_pct=10, limite_nc_pct=25), tf("{n} de {total} tarefas em modo de agendamento manual.", idioma, n=len(manuais), total=total))
+    auto(s, "Datas foram controladas pelo vínculo e não digitadas manualmente.", _classificar_taxa(len(manuais), total, limite_parcial_pct=10, limite_nc_pct=25), _evidencia("{n} de {total} tarefas em modo de agendamento manual.", idioma, manuais, n=len(manuais), total=total))
 
     # 5. Recursos
     s = "5. Recursos"
     sem_responsavel = [t for t in tarefas if not t.marco and not t.recursos]
-    auto(s, "Todas as atividades possuem responsável.", _classificar_taxa(len(sem_responsavel), total, limite_parcial_pct=10, limite_nc_pct=25), tf("{n} de {total} tarefas (não-marco) sem recurso atribuído.", idioma, n=len(sem_responsavel), total=total))
+    auto(s, "Todas as atividades possuem responsável.", _classificar_taxa(len(sem_responsavel), total, limite_parcial_pct=10, limite_nc_pct=25), _evidencia("{n} de {total} tarefas (não-marco) sem recurso atribuído.", idioma, sem_responsavel, n=len(sem_responsavel), total=total))
     nomes_recursos = [r.nome.strip().lower() for r in projeto.recursos]
     duplicados_recursos = len(nomes_recursos) - len(set(nomes_recursos))
     auto(s, "Não existem recursos duplicados.", "Conforme" if duplicados_recursos == 0 else "Não Conforme", tf("{n} nome(s) de recurso duplicado(s) de {total} recurso(s).", idioma, n=duplicados_recursos, total=len(nomes_recursos)))
@@ -186,11 +203,11 @@ def avaliar_checklist(projeto: Projeto, indicadores: Indicadores, idioma: str = 
     incoerentes = []
     if projeto.data_status:
         incoerentes = [t for t in tarefas if t.inicio and t.inicio > projeto.data_status and t.percentual_concluido > 0]
-    auto(s, "% Completo coerente com a data de status.", _classificar_taxa(len(incoerentes), total) if projeto.data_status else "N/A", tf("{n} de {total} tarefas com início futuro (após a data de status) e progresso maior que zero.", idioma, n=len(incoerentes), total=total))
+    auto(s, "% Completo coerente com a data de status.", _classificar_taxa(len(incoerentes), total) if projeto.data_status else "N/A", _evidencia("{n} de {total} tarefas com início futuro (após a data de status) e progresso maior que zero.", idioma, incoerentes, n=len(incoerentes), total=total))
     concluidas_sem_data_real = [t for t in tarefas if t.percentual_concluido >= 100 and t.termino_real is None]
     concluidas = [t for t in tarefas if t.percentual_concluido >= 100]
-    auto(s, "Atividades concluídas possuem data real de término.", _classificar_taxa(len(concluidas_sem_data_real), len(concluidas)) if concluidas else "N/A", tf("{n} de {total_concluidas} tarefas concluídas sem Término Real registrado.", idioma, n=len(concluidas_sem_data_real), total_concluidas=len(concluidas)))
-    auto(s, "Atividades futuras não possuem progresso indevido.", _classificar_taxa(len(incoerentes), total) if projeto.data_status else "N/A", tf("{n} de {total} tarefas com início futuro e progresso indevido.", idioma, n=len(incoerentes), total=total))
+    auto(s, "Atividades concluídas possuem data real de término.", _classificar_taxa(len(concluidas_sem_data_real), len(concluidas)) if concluidas else "N/A", _evidencia("{n} de {total_concluidas} tarefas concluídas sem Término Real registrado.", idioma, concluidas_sem_data_real, n=len(concluidas_sem_data_real), total_concluidas=len(concluidas)))
+    auto(s, "Atividades futuras não possuem progresso indevido.", _classificar_taxa(len(incoerentes), total) if projeto.data_status else "N/A", _evidencia("{n} de {total} tarefas com início futuro e progresso indevido.", idioma, incoerentes, n=len(incoerentes), total=total))
 
     # 10. Indicadores
     s = "10. Indicadores"
@@ -205,9 +222,9 @@ def avaliar_checklist(projeto: Projeto, indicadores: Indicadores, idioma: str = 
 
     # 11. Qualidade do Planejamento
     s = "11. Qualidade do Planejamento"
-    auto(s, "Não existem tarefas manuais.", _classificar_taxa(len(manuais), total, limite_parcial_pct=10, limite_nc_pct=25), tf("{n} de {total} tarefas em modo manual.", idioma, n=len(manuais), total=total))
+    auto(s, "Não existem tarefas manuais.", _classificar_taxa(len(manuais), total, limite_parcial_pct=10, limite_nc_pct=25), _evidencia("{n} de {total} tarefas em modo manual.", idioma, manuais, n=len(manuais), total=total))
     auto(s, "Todas as tarefas estão em modo automático.", _classificar_taxa(len(manuais), total, limite_parcial_pct=10, limite_nc_pct=25), tf("{n} de {total} tarefas em modo automático.", idioma, n=total - len(manuais), total=total))
-    auto(s, "Não existem datas digitadas manualmente (restrições diferentes de ASAP).", _classificar_taxa(len(nao_asap), total, limite_parcial_pct=10, limite_nc_pct=25), tf("{n} de {total} tarefas com restrição diferente de ASAP.", idioma, n=len(nao_asap), total=total))
+    auto(s, "Não existem datas digitadas manualmente (restrições diferentes de ASAP).", _classificar_taxa(len(nao_asap), total, limite_parcial_pct=10, limite_nc_pct=25), _evidencia("{n} de {total} tarefas com restrição diferente de ASAP.", idioma, nao_asap, n=len(nao_asap), total=total))
     nomes_tarefas = [t.nome.strip().lower() for t in tarefas]
     duplicadas_tarefas = len(nomes_tarefas) - len(set(nomes_tarefas))
     auto(s, "Não existem atividades duplicadas.", _classificar_taxa(duplicadas_tarefas, total), tf("{n} nome(s) de tarefa duplicado(s) de {total}.", idioma, n=duplicadas_tarefas, total=total))
@@ -216,17 +233,18 @@ def avaliar_checklist(projeto: Projeto, indicadores: Indicadores, idioma: str = 
     # 12. Governança
     s = "12. Governança"
     com_wbs = [t for t in tarefas if t.wbs]
-    auto(s, "Código WBS preenchido.", _classificar_taxa(total - len(com_wbs), total, limite_parcial_pct=10, limite_nc_pct=25), tf("{n} de {total} tarefas com código WBS preenchido.", idioma, n=len(com_wbs), total=total))
+    sem_wbs = [t for t in tarefas if not t.wbs]
+    auto(s, "Código WBS preenchido.", _classificar_taxa(len(sem_wbs), total, limite_parcial_pct=10, limite_nc_pct=25), _evidencia("{n} de {total} tarefas com código WBS preenchido.", idioma, sem_wbs, n=len(com_wbs), total=total))
     auto(s, "ID da atividade definido.", "Conforme", "Todas as tarefas possuem ID único atribuído pelo MS Project.")
-    auto(s, "Responsável informado.", _classificar_taxa(len(sem_responsavel), total, limite_parcial_pct=10, limite_nc_pct=25), tf("{n} de {total} tarefas (não-marco) sem recurso atribuído.", idioma, n=len(sem_responsavel), total=total))
+    auto(s, "Responsável informado.", _classificar_taxa(len(sem_responsavel), total, limite_parcial_pct=10, limite_nc_pct=25), _evidencia("{n} de {total} tarefas (não-marco) sem recurso atribuído.", idioma, sem_responsavel, n=len(sem_responsavel), total=total))
     auto(s, "Fase do projeto definida.", "Conforme" if tem_fases else "Não Conforme", t("Tarefas-resumo (fases) encontradas.", idioma) if tem_fases else t("Nenhuma tarefa-resumo encontrada.", idioma))
 
     # 13. Auditoria Final
     s = "13. Auditoria Final"
-    auto(s, "Não existem atividades sem predecessor.", _classificar_taxa(len(sem_pred), total, limite_parcial_pct=10, limite_nc_pct=25), tf("{n} de {total} tarefas sem predecessora.", idioma, n=len(sem_pred), total=total))
-    auto(s, "Não existem atividades sem sucessor (exceto a última).", _classificar_taxa(len(sem_suc), total, limite_parcial_pct=10, limite_nc_pct=25), tf("{n} de {total} tarefas sem sucessora.", idioma, n=len(sem_suc), total=total))
-    auto(s, "Não existem restrições indevidas.", _classificar_taxa(len(rigidas), total), tf("{n} de {total} tarefas com restrição rígida (MSO/MFO).", idioma, n=len(rigidas), total=total))
-    auto(s, "Não existem tarefas manuais.", _classificar_taxa(len(manuais), total, limite_parcial_pct=10, limite_nc_pct=25), tf("{n} de {total} tarefas em modo manual.", idioma, n=len(manuais), total=total))
+    auto(s, "Não existem atividades sem predecessor.", _classificar_taxa(len(sem_pred), total, limite_parcial_pct=10, limite_nc_pct=25), _evidencia("{n} de {total} tarefas sem predecessora.", idioma, sem_pred, n=len(sem_pred), total=total))
+    auto(s, "Não existem atividades sem sucessor (exceto a última).", _classificar_taxa(len(sem_suc), total, limite_parcial_pct=10, limite_nc_pct=25), _evidencia("{n} de {total} tarefas sem sucessora.", idioma, sem_suc, n=len(sem_suc), total=total))
+    auto(s, "Não existem restrições indevidas.", _classificar_taxa(len(rigidas), total), _evidencia("{n} de {total} tarefas com restrição rígida (MSO/MFO).", idioma, rigidas, n=len(rigidas), total=total))
+    auto(s, "Não existem tarefas manuais.", _classificar_taxa(len(manuais), total, limite_parcial_pct=10, limite_nc_pct=25), _evidencia("{n} de {total} tarefas em modo manual.", idioma, manuais, n=len(manuais), total=total))
     auto(s, "Baseline salva.", _classificar_taxa(total - len(com_baseline), total, limite_parcial_pct=10, limite_nc_pct=25), tf("{n} de {total} tarefas com linha de base identificada.", idioma, n=len(com_baseline), total=total))
     auto(s, "Data de Status atualizada.", "Conforme" if projeto.data_status else "Não Conforme", tf("Data de status: {data}", idioma, data=projeto.data_status) if projeto.data_status else t("Nenhuma data de status encontrada.", idioma))
 

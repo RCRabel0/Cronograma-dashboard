@@ -178,6 +178,8 @@ TRADUCOES: dict[str, str] = {
     "Maturidade": "Maturity",
     "{avaliados} de {total} itens contam na pontuação.":
         "{avaliados} of {total} items count toward the score.",
+    "Tarefas: {lista}": "Tasks: {lista}",
+    "(e mais {n} tarefa(s))": "(and {n} more task(s))",
     "Tabela de classificação de maturidade": "Maturity classification table",
     "Abaixo de 50%": "Below 50%",
     "Excelente": "Excellent",
@@ -411,6 +413,7 @@ TRADUCOES: dict[str, str] = {
     "Não existem atividades duplicadas.": "There are no duplicate activities.",
     "{n} nome(s) de tarefa duplicado(s) de {total}.": "{n} duplicate task name(s) out of {total}.",
     "Não existem durações muito elevadas.": "There are no excessively high durations.",
+    "{n} de {total} tarefas com duração acima de 20 dias úteis.": "{n} of {total} tasks with duration above 20 working days.",
 
     # --- Checklist: seção 12 ---
     "Código WBS preenchido.": "WBS code filled in.",
@@ -425,6 +428,8 @@ TRADUCOES: dict[str, str] = {
     # --- Checklist: seção 13 ---
     "Não existem atividades sem predecessor.": "There are no activities without a predecessor.",
     "Não existem atividades sem sucessor (exceto a última).": "There are no activities without a successor (except the last one).",
+    "{n} de {total} tarefas sem predecessora.": "{n} of {total} tasks without a predecessor.",
+    "{n} de {total} tarefas sem sucessora.": "{n} of {total} tasks without a successor.",
     "Não existem restrições indevidas.": "There are no undue constraints.",
     "Baseline salva.": "Baseline saved.",
     "Data de Status atualizada.": "Status Date updated.",
