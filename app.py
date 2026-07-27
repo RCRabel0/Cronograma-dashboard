@@ -236,6 +236,18 @@ if portfolio_ativo:
                     hovertemplate="%{y:.1f}%",
                 )
             )
+            for _i_proj, (_nome_proj, _p_proj) in enumerate(projetos.items()):
+                if _p_proj.termino is None:
+                    continue
+                fig_port.add_vline(
+                    x=pd.Timestamp(_p_proj.termino),
+                    line_dash="dot",
+                    line_color="#999999",
+                    annotation_text=_p_proj.nome,
+                    annotation_position="top" if _i_proj % 2 == 0 else "bottom",
+                    annotation_textangle=-90,
+                    annotation_font_size=9,
+                )
             fig_port.update_layout(
                 xaxis_title=t("Data", idioma),
                 yaxis_title=t("% Concluído (acumulado)", idioma),
@@ -245,6 +257,7 @@ if portfolio_ativo:
             )
             fig_port.update_yaxes(ticksuffix="%")
             st.plotly_chart(fig_port, width="stretch")
+            st.caption(t("As linhas pontilhadas verticais marcam o término (atual) de cada projeto.", idioma))
 
             with st.expander(t("ℹ️ Como a Curva S do Portfólio foi calculada", idioma)):
                 st.write(
