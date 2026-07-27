@@ -18,6 +18,12 @@ from cronograma.metricas import (
     formatar_valor,
     gerar_percepcoes,
 )
+from cronograma.portfolio import (
+    calcular_indicadores_portfolio,
+    gerar_curva_s_portfolio,
+    indicadores_consolidados,
+    tabela_comparativa,
+)
 from cronograma.relatorios import (
     gerar_excel,
     gerar_excel_tabela,
@@ -61,27 +67,34 @@ def processar_arquivo(conteudo: bytes, nome_arquivo: str):
 
 
 st.sidebar.title(t("📁 Cronograma", idioma))
-arquivo = st.sidebar.file_uploader(
-    t("Envie o arquivo do cronograma", idioma),
+arquivos = st.sidebar.file_uploader(
+    t("Envie o(s) arquivo(s) do cronograma", idioma),
     type=["xml", "mpp"],
-    help=t("Arquivo .mpp do MS Project, ou .xml exportado via Arquivo > Salvar Como > XML.", idioma),
+    accept_multiple_files=True,
+    help=t(
+        "Arquivo .mpp do MS Project, ou .xml exportado via Arquivo > Salvar Como > XML. "
+        "Envie mais de um arquivo para ver a aba de Portfólio.",
+        idioma,
+    ),
 )
 
-if arquivo is not None:
-    try:
-        projeto = processar_arquivo(arquivo.getvalue(), arquivo.name)
-        st.session_state["projeto"] = projeto
-        st.session_state["nome_arquivo"] = arquivo.name
-    except ArquivoInvalidoError as e:
-        st.sidebar.error(tf("Não foi possível ler o arquivo: {erro}", idioma, erro=e))
-    except MpxjIndisponivelError as e:
-        st.sidebar.error(str(e))
-    except ValueError as e:
-        st.sidebar.error(str(e))
-    except Exception as e:
-        st.sidebar.error(tf("Ocorreu um erro inesperado ao ler o arquivo: {erro}", idioma, erro=e))
+if arquivos:
+    projetos_carregados = {}
+    for arquivo in arquivos:
+        try:
+            projetos_carregados[arquivo.name] = processar_arquivo(arquivo.getvalue(), arquivo.name)
+        except ArquivoInvalidoError as e:
+            st.sidebar.error(tf("Não foi possível ler o arquivo {nome}: {erro}", idioma, nome=arquivo.name, erro=e))
+        except MpxjIndisponivelError as e:
+            st.sidebar.error(str(e))
+        except ValueError as e:
+            st.sidebar.error(str(e))
+        except Exception as e:
+            st.sidebar.error(tf("Ocorreu um erro inesperado ao ler o arquivo {nome}: {erro}", idioma, nome=arquivo.name, erro=e))
+    if projetos_carregados:
+        st.session_state["projetos"] = projetos_carregados
 
-if "projeto" not in st.session_state:
+if not st.session_state.get("projetos"):
     st.title(t("📊 Dashboard de Cronograma de Projeto", idioma))
     st.info(
         t(
@@ -92,7 +105,13 @@ if "projeto" not in st.session_state:
     )
     st.stop()
 
-projeto = st.session_state["projeto"]
+projetos = st.session_state["projetos"]
+portfolio_ativo = len(projetos) > 1
+if portfolio_ativo:
+    nome_projeto_atual = st.sidebar.selectbox(t("Projeto para detalhamento", idioma), list(projetos.keys()))
+else:
+    nome_projeto_atual = next(iter(projetos))
+projeto = projetos[nome_projeto_atual]
 
 data_padrao = projeto.data_status or date.today()
 data_status = st.sidebar.date_input(t("Data de status (para cálculo dos indicadores)", idioma), value=data_padrao)
@@ -147,17 +166,84 @@ info_cols[0].caption(tf("**Início:** {v}", idioma, v=formatar_data(projeto.inic
 info_cols[1].caption(tf("**Término:** {v}", idioma, v=formatar_data(projeto.termino, idioma) if projeto.termino else t("N/D", idioma)))
 info_cols[2].caption(tf("**Data de status:** {v}", idioma, v=formatar_data(data_status, idioma)))
 
-aba_resumo, aba_curva, aba_tarefas, aba_gantt, aba_checklist, aba_recursos, aba_exportar = st.tabs(
-    [
-        t("📈 Resumo", idioma),
-        t("📉 Curva S", idioma),
-        t("✅ Tarefas", idioma),
-        t("📅 Gantt", idioma),
-        t("📋 Checklist de Qualidade", idioma),
-        t("👥 Recursos", idioma),
-        t("📤 Exportar", idioma),
-    ]
-)
+_nomes_abas = []
+if portfolio_ativo:
+    _nomes_abas.append(t("📊 Portfólio", idioma))
+_nomes_abas += [
+    t("📈 Resumo", idioma),
+    t("📉 Curva S", idioma),
+    t("✅ Tarefas", idioma),
+    t("📅 Gantt", idioma),
+    t("📋 Checklist de Qualidade", idioma),
+    t("👥 Recursos", idioma),
+    t("📤 Exportar", idioma),
+]
+_abas = st.tabs(_nomes_abas)
+if portfolio_ativo:
+    aba_portfolio, aba_resumo, aba_curva, aba_tarefas, aba_gantt, aba_checklist, aba_recursos, aba_exportar = _abas
+else:
+    aba_resumo, aba_curva, aba_tarefas, aba_gantt, aba_checklist, aba_recursos, aba_exportar = _abas
+
+if portfolio_ativo:
+    with aba_portfolio:
+        st.subheader(t("Portfólio de Projetos", idioma))
+
+        indicadores_portfolio = calcular_indicadores_portfolio(projetos)
+        consolidado = indicadores_consolidados(projetos, indicadores_portfolio)
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric(t("Projetos", idioma), consolidado["total_projetos"])
+        c2.metric(t("% Concluído (consolidado)", idioma), f"{consolidado['percentual_concluido']:.1f}%")
+        c3.metric("SPI", f"{consolidado['spi']:.2f}" if consolidado["spi"] is not None else t("N/D", idioma))
+        c4.metric("CPI", f"{consolidado['cpi']:.2f}" if consolidado["cpi"] is not None else t("N/D", idioma))
+
+        c5, c6, c7 = st.columns(3)
+        c5.metric(t("Projetos Atrasados", idioma), consolidado["projetos_atrasados"])
+        c6.metric(t("Tarefas Atrasadas", idioma), consolidado["tarefas_atrasadas"])
+        c7.metric(t("Tarefas Críticas Atrasadas", idioma), consolidado["tarefas_criticas_atrasadas"])
+
+        st.divider()
+        st.subheader(t("Comparativo entre Projetos", idioma))
+        tabela_port = tabela_comparativa(projetos, indicadores_portfolio, idioma=idioma)
+        st.dataframe(tabela_port, hide_index=True, width="stretch")
+
+        st.divider()
+        st.subheader(t("Curva S Consolidada do Portfólio", idioma))
+        curva_portfolio = gerar_curva_s_portfolio(projetos, indicadores_portfolio)
+        if curva_portfolio.empty:
+            st.info(t("Não foi possível gerar a Curva S consolidada (sem dados de valor nos projetos).", idioma))
+        else:
+            fig_port = go.Figure()
+            fig_port.add_trace(
+                go.Scatter(
+                    x=curva_portfolio.index, y=curva_portfolio["Linha de Base"],
+                    name=t("Linha de Base", idioma), line=dict(dash="dash", color="#5B8DB8"),
+                    hovertemplate="%{y:.1f}%",
+                )
+            )
+            fig_port.add_trace(
+                go.Scatter(
+                    x=curva_portfolio.index, y=curva_portfolio["Realizado / Previsto"],
+                    name=t("Realizado / Previsto", idioma), line=dict(color="#2E8B57"),
+                    hovertemplate="%{y:.1f}%",
+                )
+            )
+            fig_port.update_layout(
+                xaxis_title=t("Data", idioma),
+                yaxis_title=t("% Concluído (acumulado)", idioma),
+                hovermode="x unified",
+                legend_title_text=t("Série", idioma),
+                height=480,
+            )
+            fig_port.update_yaxes(ticksuffix="%")
+            st.plotly_chart(fig_port, width="stretch")
+            st.caption(
+                t(
+                    "Cada projeto é normalizado para % do seu próprio valor total e combinado "
+                    "ponderando pelo tamanho (duração) de cada cronograma.",
+                    idioma,
+                )
+            )
 
 with aba_resumo:
     c1, c2 = st.columns(2)

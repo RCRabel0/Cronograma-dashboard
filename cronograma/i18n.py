@@ -38,16 +38,19 @@ def formato_coluna_data(idioma: str) -> str:
 TRADUCOES: dict[str, str] = {
     # --- Barra lateral / topo ---
     "📁 Cronograma": "📁 Schedule",
-    "Envie o arquivo do cronograma": "Upload the schedule file",
-    "Arquivo .mpp do MS Project, ou .xml exportado via Arquivo > Salvar Como > XML.":
-        "MS Project .mpp file, or .xml exported via File > Save As > XML.",
-    "Não foi possível ler o arquivo: {erro}": "Could not read the file: {erro}",
-    "Ocorreu um erro inesperado ao ler o arquivo: {erro}": "An unexpected error occurred while reading the file: {erro}",
+    "Envie o(s) arquivo(s) do cronograma": "Upload the schedule file(s)",
+    "Arquivo .mpp do MS Project, ou .xml exportado via Arquivo > Salvar Como > XML. "
+    "Envie mais de um arquivo para ver a aba de Portfólio.":
+        "MS Project .mpp file, or .xml exported via File > Save As > XML. "
+        "Upload more than one file to see the Portfolio tab.",
+    "Não foi possível ler o arquivo {nome}: {erro}": "Could not read the file {nome}: {erro}",
+    "Ocorreu um erro inesperado ao ler o arquivo {nome}: {erro}": "An unexpected error occurred while reading the file {nome}: {erro}",
     "📊 Dashboard de Cronograma de Projeto": "📊 Project Schedule Dashboard",
     "👈 Envie um arquivo **.xml** (exportado do MS Project) ou **.mpp** na barra lateral para começar.\n\n"
     "Para exportar o XML no MS Project: **Arquivo > Salvar Como**, escolha o tipo **XML**.":
         "👈 Upload an **.xml** file (exported from MS Project) or **.mpp** in the sidebar to get started.\n\n"
         "To export the XML from MS Project: **File > Save As**, choose the **XML** type.",
+    "Projeto para detalhamento": "Project for detail view",
     "Data de status (para cálculo dos indicadores)": "Status date (used to calculate indicators)",
     "**Início:** {v}": "**Start:** {v}",
     "**Término:** {v}": "**Finish:** {v}",
@@ -56,6 +59,7 @@ TRADUCOES: dict[str, str] = {
     "Idioma": "Language",
 
     # --- Abas ---
+    "📊 Portfólio": "📊 Portfolio",
     "📈 Resumo": "📈 Summary",
     "📉 Curva S": "📉 S-Curve",
     "✅ Tarefas": "✅ Tasks",
@@ -63,6 +67,24 @@ TRADUCOES: dict[str, str] = {
     "📋 Checklist de Qualidade": "📋 Quality Checklist",
     "👥 Recursos": "👥 Resources",
     "📤 Exportar": "📤 Export",
+
+    # --- Portfólio ---
+    "Portfólio de Projetos": "Project Portfolio",
+    "Projetos": "Projects",
+    "% Concluído (consolidado)": "% Complete (consolidated)",
+    "Projetos Atrasados": "Delayed Projects",
+    "Tarefas Atrasadas": "Delayed Tasks",
+    "Tarefas Críticas Atrasadas": "Delayed Critical Tasks",
+    "Comparativo entre Projetos": "Project Comparison",
+    "Projeto": "Project",
+    "Total de Tarefas": "Total Tasks",
+    "Curva S Consolidada do Portfólio": "Consolidated Portfolio S-Curve",
+    "Não foi possível gerar a Curva S consolidada (sem dados de valor nos projetos).":
+        "Could not generate the consolidated S-Curve (no value data in the projects).",
+    "Cada projeto é normalizado para % do seu próprio valor total e combinado "
+    "ponderando pelo tamanho (duração) de cada cronograma.":
+        "Each project is normalized to % of its own total value and combined "
+        "weighted by the size (duration) of each schedule.",
 
     # --- Resumo ---
     "% Concluído": "% Complete",
