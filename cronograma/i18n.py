@@ -51,6 +51,7 @@ TRADUCOES: dict[str, str] = {
         "👈 Upload an **.xml** file (exported from MS Project) or **.mpp** in the sidebar to get started.\n\n"
         "To export the XML from MS Project: **File > Save As**, choose the **XML** type.",
     "Projeto para detalhamento": "Project for detail view",
+    "**Detalhando o projeto:** {v}": "**Showing details for:** {v}",
     "Data de status (para cálculo dos indicadores)": "Status date (used to calculate indicators)",
     "**Início:** {v}": "**Start:** {v}",
     "**Término:** {v}": "**Finish:** {v}",
