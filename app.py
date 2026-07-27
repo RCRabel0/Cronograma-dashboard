@@ -193,14 +193,15 @@ if portfolio_ativo:
 
         c1, c2, c3, c4 = st.columns(4)
         c1.metric(t("Projetos", idioma), consolidado["total_projetos"])
-        c2.metric(t("% Concluído (consolidado)", idioma), f"{consolidado['percentual_concluido']:.1f}%")
+        c2.metric(t("% Concluído", idioma), f"{consolidado['percentual_concluido']:.1f}%")
         c3.metric("SPI", f"{consolidado['spi']:.2f}" if consolidado["spi"] is not None else t("N/D", idioma))
         c4.metric("CPI", f"{consolidado['cpi']:.2f}" if consolidado["cpi"] is not None else t("N/D", idioma))
 
-        c5, c6, c7 = st.columns(3)
+        c5, c6, c7, c8 = st.columns(4)
         c5.metric(t("Projetos Atrasados", idioma), consolidado["projetos_atrasados"])
         c6.metric(t("Tarefas Atrasadas", idioma), consolidado["tarefas_atrasadas"])
-        c7.metric(t("Tarefas Críticas Atrasadas", idioma), consolidado["tarefas_criticas_atrasadas"])
+        c7.metric(t("Críticas Atrasadas", idioma), consolidado["tarefas_criticas_atrasadas"])
+        c8.metric(t("Total de Tarefas", idioma), consolidado["total_tarefas"])
 
         st.divider()
         st.subheader(t("Comparativo entre Projetos", idioma))
