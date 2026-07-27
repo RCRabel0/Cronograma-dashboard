@@ -56,6 +56,9 @@ TRADUCOES: dict[str, str] = {
     "**Início:** {v}": "**Start:** {v}",
     "**Término:** {v}": "**Finish:** {v}",
     "**Data de status:** {v}": "**Status date:** {v}",
+    "**Linhas de base salvas:** {v}": "**Saved baselines:** {v}",
+    "**Linha de base ativa:** {v}": "**Active baseline:** {v}",
+    "{inicio} a {termino}": "{inicio} to {termino}",
     "🧹 Limpar filtro de datas": "🧹 Clear date filter",
     "Idioma": "Language",
 

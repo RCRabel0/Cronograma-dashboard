@@ -66,6 +66,7 @@ class Projeto:
     inicio: Optional[date] = None
     termino: Optional[date] = None
     data_status: Optional[date] = None
+    numero_baselines_salvas: int = 0
     tarefas: list[Tarefa] = field(default_factory=list)
     recursos: list[Recurso] = field(default_factory=list)
 

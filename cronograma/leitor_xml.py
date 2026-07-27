@@ -78,6 +78,18 @@ def _campo_linha_base(elemento, baseline0, ns, campo: str) -> str | None:
     return None
 
 
+def _contar_baselines_salvas(elemento_tarefa, ns) -> int:
+    """Conta quantos números de linha de base (0 a 10) têm de fato uma data de
+    início ou término salva na tarefa (normalmente a tarefa-resumo do projeto)."""
+    total = 0
+    for baseline in elemento_tarefa.findall(f"{ns}Baseline"):
+        if _texto(baseline, "Start", ns) or _texto(baseline, "Finish", ns):
+            total += 1
+    if total == 0 and (_texto(elemento_tarefa, "BaselineStart", ns) or _texto(elemento_tarefa, "BaselineFinish", ns)):
+        total = 1
+    return total
+
+
 def ler_xml(caminho: str) -> Projeto:
     """Lê um arquivo MSPDI (XML exportado do MS Project) e retorna um Projeto."""
     try:
@@ -122,10 +134,16 @@ def ler_xml(caminho: str) -> Projeto:
     if el_tarefas is None:
         raise ArquivoInvalidoError("Nenhuma tarefa encontrada no arquivo (<Tasks> ausente).")
 
+    numero_baselines_salvas = 0
+    numero_baselines_primeira_tarefa = None
     for el in el_tarefas.findall(f"{ns}Task"):
         uid = _texto(el, "UID", ns) or ""
         nome = _texto(el, "Name", ns) or "(sem nome)"
         baseline0 = _baseline_zero(el, ns)
+        if numero_baselines_primeira_tarefa is None:
+            numero_baselines_primeira_tarefa = _contar_baselines_salvas(el, ns)
+        if _texto(el, "OutlineLevel", ns) == "0":
+            numero_baselines_salvas = _contar_baselines_salvas(el, ns)
 
         tarefa = Tarefa(
             uid=uid,
@@ -165,6 +183,11 @@ def ler_xml(caminho: str) -> Projeto:
         tarefas.append(tarefa)
         tarefas_por_uid[uid] = tarefa
 
+    if numero_baselines_salvas == 0 and numero_baselines_primeira_tarefa:
+        # Nem toda exportação inclui uma tarefa-resumo de nível 0; nesse caso, usa a
+        # primeira tarefa do arquivo como referência para contar as linhas de base.
+        numero_baselines_salvas = numero_baselines_primeira_tarefa
+
     el_atribuicoes = raiz.find(f"{ns}Assignments")
     if el_atribuicoes is not None:
         for el in el_atribuicoes.findall(f"{ns}Assignment"):
@@ -183,6 +206,7 @@ def ler_xml(caminho: str) -> Projeto:
         inicio=inicio_projeto,
         termino=termino_projeto,
         data_status=data_status,
+        numero_baselines_salvas=numero_baselines_salvas,
         tarefas=tarefas,
         recursos=list(recursos_por_uid.values()),
     )

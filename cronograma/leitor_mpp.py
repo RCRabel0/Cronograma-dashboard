@@ -88,6 +88,24 @@ def _wbs(t) -> str:
         return ""
 
 
+def _contar_baselines_salvas(t) -> int:
+    """Conta quantos números de linha de base (0 a 10) têm data de início ou
+    término salva na tarefa (normalmente a tarefa-resumo do projeto)."""
+    total = 0
+    try:
+        if t.getBaselineStart() is not None or t.getBaselineFinish() is not None:
+            total += 1
+    except Exception:
+        pass
+    for n in range(1, 11):
+        try:
+            if t.getBaselineStart(n) is not None or t.getBaselineFinish(n) is not None:
+                total += 1
+        except Exception:
+            continue
+    return total
+
+
 def ler_mpp(caminho: str) -> Projeto:
     """Lê um arquivo .mpp (ou qualquer formato suportado pelo MPXJ) via a biblioteca mpxj.
 
@@ -125,10 +143,13 @@ def ler_mpp(caminho: str) -> Projeto:
             custo=_num(r.getCost()),
         )
 
+    numero_baselines_salvas = 0
     for t in projeto_mpxj.getTasks():
         if t.getUniqueID() == 0 and t.getName() is None:
             continue
         uid = str(t.getUniqueID())
+        if int(t.getOutlineLevel() or 0) == 0:
+            numero_baselines_salvas = _contar_baselines_salvas(t)
         tarefa = Tarefa(
             uid=uid,
             id=int(t.getID() or 0),
@@ -187,6 +208,7 @@ def ler_mpp(caminho: str) -> Projeto:
         inicio=_para_data(propriedades.getStartDate()),
         termino=_para_data(propriedades.getFinishDate()),
         data_status=_para_data(propriedades.getStatusDate()),
+        numero_baselines_salvas=numero_baselines_salvas,
         tarefas=tarefas,
         recursos=list(recursos_por_uid.values()),
     )
