@@ -83,6 +83,7 @@ TRADUCOES: dict[str, str] = {
     "Exportar Relatório do Portfólio": "Export Portfolio Report",
     "Não foi possível gerar a Curva S consolidada (sem dados de valor nos projetos).":
         "Could not generate the consolidated S-Curve (no value data in the projects).",
+    "Ocultar nomes dos projetos no indicador de término": "Hide project names in the finish-date indicator",
     "As linhas pontilhadas verticais marcam o término (atual) de cada projeto.":
         "The vertical dotted lines mark the (current) finish date of each project.",
     "ℹ️ Como a Curva S do Portfólio foi calculada": "ℹ️ How the Portfolio S-Curve was calculated",

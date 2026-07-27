@@ -221,6 +221,7 @@ if portfolio_ativo:
         if curva_portfolio.empty:
             st.info(t("Não foi possível gerar a Curva S consolidada (sem dados de valor nos projetos).", idioma))
         else:
+            ocultar_nomes_termino = st.checkbox(t("Ocultar nomes dos projetos no indicador de término", idioma))
             fig_port = go.Figure()
             fig_port.add_trace(
                 go.Scatter(
@@ -243,7 +244,7 @@ if portfolio_ativo:
                     x=pd.Timestamp(_p_proj.termino),
                     line_dash="dot",
                     line_color="#999999",
-                    annotation_text=_p_proj.nome,
+                    annotation_text="" if ocultar_nomes_termino else _p_proj.nome,
                     annotation_position="top" if _i_proj % 2 == 0 else "bottom",
                     annotation_textangle=-90,
                     annotation_font_size=9,
