@@ -818,8 +818,6 @@ with aba_gantt:
                 x=pd.Timestamp(data_status),
                 line_dash="dot",
                 line_color="#DDDDDD",
-                annotation_text=t("Data de status", idioma),
-                annotation_position="bottom right",
             )
 
         total_linhas = len(barras) + len(marcos_gantt)
@@ -838,6 +836,10 @@ with aba_gantt:
             margin=dict(t=70),
         )
         st.plotly_chart(fig_gantt, width="stretch")
+        if data_status:
+            st.caption(
+                tf("A linha pontilhada vertical marca a Data de status ({data}).", idioma, data=formatar_data(data_status, idioma))
+            )
         st.caption(
             tf(
                 "Exibindo {n} tarefa(s). Losangos representam marcos; o número dentro das barras é o % concluído. "

@@ -193,6 +193,8 @@ TRADUCOES: dict[str, str] = {
         "No task found with the selected filters (or missing start/finish dates).",
     "Status": "Status",
     "{status} (marco)": "{status} (milestone)",
+    "A linha pontilhada vertical marca a Data de status ({data}).":
+        "The vertical dotted line marks the Status date ({data}).",
     "Exibindo {n} tarefa(s). Losangos representam marcos; o número dentro das barras é o % concluído. "
     "Setas cinzas indicam dependências entre tarefas (só aparecem quando predecessora e sucessora estão "
     "ambas visíveis com os filtros atuais). Use os filtros acima para reduzir a lista em projetos grandes.":
