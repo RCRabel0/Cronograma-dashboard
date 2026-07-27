@@ -27,9 +27,11 @@ from cronograma.portfolio import (
 )
 from cronograma.relatorios import (
     gerar_excel,
+    gerar_excel_portfolio,
     gerar_excel_tabela,
     gerar_pdf,
     gerar_pdf_executivo,
+    gerar_pdf_portfolio,
     tabela_recursos,
     tabela_tarefas,
 )
@@ -265,6 +267,30 @@ if portfolio_ativo:
                     ]
                 )
                 st.dataframe(df_pesos, hide_index=True, width="stretch")
+
+        st.divider()
+        st.subheader(t("Exportar Relatório do Portfólio", idioma))
+        # O relatório exportado permanece sempre em português, independente do idioma da interface.
+        tabela_port_exportacao = tabela_comparativa(projetos, indicadores_portfolio, idioma="pt")
+        col_xp, col_pp = st.columns(2)
+        with col_xp:
+            excel_portfolio_bytes = gerar_excel_portfolio(tabela_port_exportacao, consolidado, curva_portfolio)
+            st.download_button(
+                t("⬇️ Baixar Excel", idioma),
+                data=excel_portfolio_bytes,
+                file_name=f"portfolio_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                width="stretch",
+            )
+        with col_pp:
+            pdf_portfolio_bytes = gerar_pdf_portfolio(tabela_port_exportacao, consolidado, curva_portfolio)
+            st.download_button(
+                t("⬇️ Baixar PDF", idioma),
+                data=pdf_portfolio_bytes,
+                file_name=f"portfolio_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
+                mime="application/pdf",
+                width="stretch",
+            )
 
 with aba_resumo:
     c1, c2 = st.columns(2)

@@ -80,6 +80,7 @@ TRADUCOES: dict[str, str] = {
     "Projeto": "Project",
     "Total de Tarefas": "Total Tasks",
     "Curva S Consolidada do Portfólio": "Consolidated Portfolio S-Curve",
+    "Exportar Relatório do Portfólio": "Export Portfolio Report",
     "Não foi possível gerar a Curva S consolidada (sem dados de valor nos projetos).":
         "Could not generate the consolidated S-Curve (no value data in the projects).",
     "ℹ️ Como a Curva S do Portfólio foi calculada": "ℹ️ How the Portfolio S-Curve was calculated",

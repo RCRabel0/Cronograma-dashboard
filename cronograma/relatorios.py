@@ -148,6 +148,145 @@ def gerar_excel(projeto: Projeto, indicadores: Indicadores, curva_s: pd.DataFram
     return buffer.getvalue()
 
 
+def gerar_excel_portfolio(tabela_comparativa: pd.DataFrame, consolidado: dict, curva_portfolio: pd.DataFrame) -> bytes:
+    buffer = io.BytesIO()
+
+    resumo = pd.DataFrame(
+        {
+            "Indicador": [
+                "Total de Projetos",
+                "Projetos Atrasados",
+                "% Concluído (consolidado)",
+                "SPI (consolidado)",
+                "CPI (consolidado)",
+                "Tarefas Atrasadas",
+                "Tarefas Críticas Atrasadas",
+                "Total de Tarefas",
+            ],
+            "Valor": [
+                consolidado["total_projetos"],
+                consolidado["projetos_atrasados"],
+                f"{consolidado['percentual_concluido']:.1f}%",
+                f"{consolidado['spi']:.2f}" if consolidado["spi"] is not None else "N/D",
+                f"{consolidado['cpi']:.2f}" if consolidado["cpi"] is not None else "N/D",
+                consolidado["tarefas_atrasadas"],
+                consolidado["tarefas_criticas_atrasadas"],
+                consolidado["total_tarefas"],
+            ],
+        }
+    )
+
+    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+        resumo.to_excel(writer, sheet_name="Resumo Portfólio", index=False)
+        tabela_comparativa.to_excel(writer, sheet_name="Comparativo", index=False)
+        if not curva_portfolio.empty:
+            curva_portfolio.reset_index(names="Data").to_excel(writer, sheet_name="Curva S Portfólio", index=False)
+
+            planilha_curva = writer.sheets["Curva S Portfólio"]
+            grafico = LineChart()
+            grafico.title = "Curva S Consolidada do Portfólio (%)"
+            grafico.y_axis.title = "% Concluído (acumulado)"
+            grafico.x_axis.title = "Data"
+            n_linhas = len(curva_portfolio) + 1
+            dados = Reference(planilha_curva, min_col=2, max_col=3, min_row=1, max_row=n_linhas)
+            categorias = Reference(planilha_curva, min_col=1, min_row=2, max_row=n_linhas)
+            grafico.add_data(dados, titles_from_data=True)
+            grafico.set_categories(categorias)
+            planilha_curva.add_chart(grafico, "F2")
+
+    return buffer.getvalue()
+
+
+def _grafico_curva_s_portfolio_png(curva_portfolio: pd.DataFrame) -> bytes:
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots(figsize=(16, 8))
+    for coluna in ["Linha de Base", "Realizado / Previsto"]:
+        estilo = "--" if coluna == "Linha de Base" else "-"
+        ax.plot(curva_portfolio.index, curva_portfolio[coluna], label=coluna, linewidth=2, linestyle=estilo)
+    ax.set_title("Curva S Consolidada do Portfólio")
+    ax.set_xlabel("Data")
+    ax.set_ylabel("% Concluído (acumulado)")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    fig.autofmt_xdate()
+
+    saida = io.BytesIO()
+    fig.savefig(saida, format="png", dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    return saida.getvalue()
+
+
+def gerar_pdf_portfolio(tabela_comparativa: pd.DataFrame, consolidado: dict, curva_portfolio: pd.DataFrame) -> bytes:
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=1.5 * cm, bottomMargin=1.5 * cm)
+    estilos = getSampleStyleSheet()
+    elementos = []
+
+    elementos.append(Paragraph("Relatório de Portfólio de Projetos", estilos["Title"]))
+    elementos.append(Spacer(1, 0.5 * cm))
+
+    dados_indicadores = [
+        ["Indicador", "Valor"],
+        ["Total de Projetos", str(consolidado["total_projetos"])],
+        ["Projetos Atrasados", str(consolidado["projetos_atrasados"])],
+        ["% Concluído (consolidado)", f"{consolidado['percentual_concluido']:.1f}%"],
+        ["SPI (consolidado)", f"{consolidado['spi']:.2f}" if consolidado["spi"] is not None else "N/D"],
+        ["CPI (consolidado)", f"{consolidado['cpi']:.2f}" if consolidado["cpi"] is not None else "N/D"],
+        ["Tarefas Atrasadas", str(consolidado["tarefas_atrasadas"])],
+        ["Tarefas Críticas Atrasadas", str(consolidado["tarefas_criticas_atrasadas"])],
+        ["Total de Tarefas", str(consolidado["total_tarefas"])],
+    ]
+    tabela_ind = Table(dados_indicadores, colWidths=[9 * cm, 7 * cm])
+    tabela_ind.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2E4053")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                ("FONTSIZE", (0, 0), (-1, -1), 9),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.white]),
+            ]
+        )
+    )
+    elementos.append(tabela_ind)
+    elementos.append(Spacer(1, 0.7 * cm))
+
+    elementos.append(Paragraph("Curva S Consolidada do Portfólio", estilos["Heading2"]))
+    if not curva_portfolio.empty:
+        png_curva = _grafico_curva_s_portfolio_png(curva_portfolio)
+        elementos.append(_imagem_proporcional(png_curva, 17, 9))
+    else:
+        elementos.append(Paragraph("Não foi possível gerar a Curva S consolidada.", estilos["Normal"]))
+    elementos.append(Spacer(1, 0.7 * cm))
+
+    elementos.append(Paragraph("Comparativo entre Projetos", estilos["Heading2"]))
+    colunas = list(tabela_comparativa.columns)
+    dados_tabela = [colunas]
+    for _, linha in tabela_comparativa.iterrows():
+        dados_tabela.append([str(v) if v is not None else "N/D" for v in linha])
+    largura_coluna = 16 * cm / len(colunas)
+    tabela_comp = Table(dados_tabela, colWidths=[largura_coluna] * len(colunas), repeatRows=1)
+    tabela_comp.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2E4053")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("GRID", (0, 0), (-1, -1), 0.4, colors.grey),
+                ("FONTSIZE", (0, 0), (-1, -1), 7),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.white]),
+            ]
+        )
+    )
+    elementos.append(tabela_comp)
+
+    doc.build(elementos)
+    return buffer.getvalue()
+
+
 def _grafico_curva_s_png(curva_s: pd.DataFrame, unidade: str) -> bytes:
     import matplotlib
 
