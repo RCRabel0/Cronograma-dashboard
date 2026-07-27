@@ -22,6 +22,7 @@ from cronograma.portfolio import (
     calcular_indicadores_portfolio,
     gerar_curva_s_portfolio,
     indicadores_consolidados,
+    pesos_relativos,
     tabela_comparativa,
 )
 from cronograma.relatorios import (
@@ -238,13 +239,28 @@ if portfolio_ativo:
             )
             fig_port.update_yaxes(ticksuffix="%")
             st.plotly_chart(fig_port, width="stretch")
-            st.caption(
-                t(
-                    "Cada projeto é normalizado para % do seu próprio valor total e combinado "
-                    "ponderando pelo tamanho (duração) de cada cronograma.",
-                    idioma,
+
+            with st.expander(t("ℹ️ Como a Curva S do Portfólio foi calculada", idioma)):
+                st.write(
+                    t(
+                        "Cada projeto é normalizado para % do seu próprio valor total (custo, "
+                        "ou duração quando não há custo) antes de ser combinado — isso permite somar "
+                        "cronogramas com unidades diferentes. A curva final é a média dessas curvas em "
+                        "%, ponderada pelo peso de cada projeto (duração total das tarefas), listado abaixo:",
+                        idioma,
+                    )
                 )
-            )
+                pesos = pesos_relativos(projetos)
+                df_pesos = pd.DataFrame(
+                    [
+                        {
+                            t("Projeto", idioma): projetos[nome].nome,
+                            t("Peso no Portfólio", idioma): f"{peso:.1f}%",
+                        }
+                        for nome, peso in pesos.items()
+                    ]
+                )
+                st.dataframe(df_pesos, hide_index=True, width="stretch")
 
 with aba_resumo:
     c1, c2 = st.columns(2)

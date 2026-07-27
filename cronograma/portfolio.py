@@ -28,6 +28,14 @@ def _peso_projeto(projeto: Projeto) -> float:
     return peso if peso > 0 else 1.0
 
 
+def pesos_relativos(projetos: dict[str, Projeto]) -> dict[str, float]:
+    """Peso relativo (%) de cada projeto na consolidação do portfólio (indicadores e Curva
+    S), baseado na duração total de linha de base (ou atual) das tarefas de detalhe."""
+    pesos = {nome: _peso_projeto(projeto) for nome, projeto in projetos.items()}
+    total = sum(pesos.values()) or 1.0
+    return {nome: peso / total * 100 for nome, peso in pesos.items()}
+
+
 def tabela_comparativa(projetos: dict[str, Projeto], indicadores_por_projeto: dict[str, Indicadores], idioma: str = "pt") -> pd.DataFrame:
     linhas = []
     for nome, projeto in projetos.items():

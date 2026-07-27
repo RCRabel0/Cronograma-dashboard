@@ -81,10 +81,16 @@ TRADUCOES: dict[str, str] = {
     "Curva S Consolidada do Portfólio": "Consolidated Portfolio S-Curve",
     "Não foi possível gerar a Curva S consolidada (sem dados de valor nos projetos).":
         "Could not generate the consolidated S-Curve (no value data in the projects).",
-    "Cada projeto é normalizado para % do seu próprio valor total e combinado "
-    "ponderando pelo tamanho (duração) de cada cronograma.":
-        "Each project is normalized to % of its own total value and combined "
-        "weighted by the size (duration) of each schedule.",
+    "ℹ️ Como a Curva S do Portfólio foi calculada": "ℹ️ How the Portfolio S-Curve was calculated",
+    "Cada projeto é normalizado para % do seu próprio valor total (custo, "
+    "ou duração quando não há custo) antes de ser combinado — isso permite somar "
+    "cronogramas com unidades diferentes. A curva final é a média dessas curvas em "
+    "%, ponderada pelo peso de cada projeto (duração total das tarefas), listado abaixo:":
+        "Each project is normalized to % of its own total value (cost, "
+        "or duration when there is no cost) before being combined — this allows adding up "
+        "schedules with different units. The final curve is the average of these % curves, "
+        "weighted by each project's weight (total task duration), listed below:",
+    "Peso no Portfólio": "Portfolio Weight",
 
     # --- Resumo ---
     "% Concluído": "% Complete",
