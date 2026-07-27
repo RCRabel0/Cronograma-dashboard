@@ -137,6 +137,10 @@ def definir_periodo_global(inicio: date, fim: date) -> None:
         st.session_state["periodo_global"] = (inicio, fim)
         st.session_state["periodo_versao"] += 1
 
+
+if st.sidebar.button(t("🧹 Limpar filtro de datas", idioma)):
+    definir_periodo_global(data_min_projeto, data_max_projeto)
+
 st.title(f"📊 {projeto.nome}")
 info_cols = st.columns(3)
 info_cols[0].caption(tf("**Início:** {v}", idioma, v=formatar_data(projeto.inicio, idioma) if projeto.inicio else t("N/D", idioma)))
