@@ -45,28 +45,6 @@ st.set_page_config(
     layout="wide",
 )
 
-
-@st.cache_resource
-def _contador_acessos_global():
-    """Contador compartilhado entre todas as sessões deste processo. Zera quando o
-    app reinicia (deploy novo, reboot no Streamlit Cloud, ou inatividade prolongada)."""
-    return {"total": 0}
-
-
-_contador_acessos = _contador_acessos_global()
-if "acesso_ja_contado" not in st.session_state:
-    _contador_acessos["total"] += 1
-    st.session_state["acesso_ja_contado"] = True
-
-try:
-    _codigo_admin_configurado = st.secrets.get("admin_code")
-except Exception:
-    _codigo_admin_configurado = None
-
-if _codigo_admin_configurado and st.query_params.get("admin") == _codigo_admin_configurado:
-    st.sidebar.metric("👁️ Acessos (visível só para você)", _contador_acessos["total"])
-    st.sidebar.divider()
-
 idioma_escolha = st.sidebar.segmented_control(
     "Idioma / Language", ["Português", "English"], default="Português", key="idioma_ui", required=True
 )

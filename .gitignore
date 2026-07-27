@@ -3,9 +3,6 @@ __pycache__/
 *.pyc
 .claude/
 
-# Segredos locais (nunca versionar - configurar direto no Streamlit Cloud)
-.streamlit/secrets.toml
-
 # Arquivos reais de cronograma (dados sensíveis da empresa) - nunca versionar
 PRJ*.xml
 PRJ*.mpp
