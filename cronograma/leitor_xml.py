@@ -114,6 +114,10 @@ def ler_xml(caminho: str) -> Projeto:
     inicio_projeto = _data(_texto(raiz, "StartDate", ns))
     termino_projeto = _data(_texto(raiz, "FinishDate", ns))
     data_status = _data(_texto(raiz, "StatusDate", ns)) or _data(_texto(raiz, "CurrentDate", ns))
+    # A maioria das exportações em XML não inclui a data em que a linha de base foi
+    # salva (isso normalmente só existe no .mpp nativo); tenta mesmo assim, caso
+    # alguma versão do MS Project inclua esse campo.
+    data_salva_linha_base = _data(_texto(raiz, "BaselineDate", ns))
 
     recursos_por_uid: dict[str, Recurso] = {}
     el_recursos = raiz.find(f"{ns}Resources")
@@ -207,6 +211,7 @@ def ler_xml(caminho: str) -> Projeto:
         termino=termino_projeto,
         data_status=data_status,
         numero_baselines_salvas=numero_baselines_salvas,
+        data_salva_linha_base=data_salva_linha_base,
         tarefas=tarefas,
         recursos=list(recursos_por_uid.values()),
     )

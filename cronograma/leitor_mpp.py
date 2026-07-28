@@ -131,6 +131,11 @@ def ler_mpp(caminho: str) -> Projeto:
 
     propriedades = projeto_mpxj.getProjectProperties()
 
+    try:
+        data_salva_linha_base = _para_data(propriedades.getBaselineDate())
+    except Exception:
+        data_salva_linha_base = None
+
     tarefas: list[Tarefa] = []
     recursos_por_uid: dict[str, Recurso] = {}
 
@@ -209,6 +214,7 @@ def ler_mpp(caminho: str) -> Projeto:
         termino=_para_data(propriedades.getFinishDate()),
         data_status=_para_data(propriedades.getStatusDate()),
         numero_baselines_salvas=numero_baselines_salvas,
+        data_salva_linha_base=data_salva_linha_base,
         tarefas=tarefas,
         recursos=list(recursos_por_uid.values()),
     )

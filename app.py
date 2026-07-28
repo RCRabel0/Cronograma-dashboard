@@ -22,6 +22,7 @@ from cronograma.portfolio import (
     calcular_indicadores_portfolio,
     gerar_curva_s_portfolio,
     indicadores_consolidados,
+    periodo_linha_base_ativa,
     pesos_relativos,
     tabela_comparativa,
 )
@@ -167,17 +168,7 @@ if portfolio_ativo:
     st.title(t("📊 Portfólio", idioma))
 else:
     st.title(f"📊 {projeto.nome}")
-    _resumo_projeto = projeto.tarefa_resumo_projeto
-    _inicio_lb = _resumo_projeto.inicio_linha_base if _resumo_projeto else None
-    _termino_lb = _resumo_projeto.termino_linha_base if _resumo_projeto else None
-    if _inicio_lb or _termino_lb:
-        _periodo_lb_ativa = tf(
-            "{inicio} a {termino}", idioma,
-            inicio=formatar_data(_inicio_lb, idioma) if _inicio_lb else t("N/D", idioma),
-            termino=formatar_data(_termino_lb, idioma) if _termino_lb else t("N/D", idioma),
-        )
-    else:
-        _periodo_lb_ativa = t("N/D", idioma)
+    _periodo_lb_ativa = periodo_linha_base_ativa(projeto, idioma)
 
     info_cols = st.columns(5)
     info_cols[0].caption(tf("**Início:** {v}", idioma, v=formatar_data(projeto.inicio, idioma) if projeto.inicio else t("N/D", idioma)))

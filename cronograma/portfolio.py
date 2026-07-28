@@ -36,7 +36,12 @@ def pesos_relativos(projetos: dict[str, Projeto]) -> dict[str, float]:
     return {nome: peso / total * 100 for nome, peso in pesos.items()}
 
 
-def _periodo_linha_base_ativa(projeto: Projeto, idioma: str) -> str:
+def periodo_linha_base_ativa(projeto: Projeto, idioma: str) -> str:
+    """Data em que a linha de base ativa foi salva, quando o arquivo traz essa
+    informação (normalmente só em .mpp nativo); senão, cai para o período
+    planejado (início-término) da linha de base, que sempre está disponível."""
+    if projeto.data_salva_linha_base:
+        return formatar_data(projeto.data_salva_linha_base, idioma)
     resumo = projeto.tarefa_resumo_projeto
     inicio_lb = resumo.inicio_linha_base if resumo else None
     termino_lb = resumo.termino_linha_base if resumo else None
@@ -59,7 +64,7 @@ def tabela_comparativa(projetos: dict[str, Projeto], indicadores_por_projeto: di
                 t("Início", idioma): formatar_data(projeto.inicio, idioma) if projeto.inicio else t("N/D", idioma),
                 t("Término", idioma): formatar_data(projeto.termino, idioma) if projeto.termino else t("N/D", idioma),
                 t("Data de status", idioma): formatar_data(data_status_projeto(projeto), idioma),
-                t("Linha de Base Ativa", idioma): _periodo_linha_base_ativa(projeto, idioma),
+                t("Linha de Base Ativa", idioma): periodo_linha_base_ativa(projeto, idioma),
                 t("% Concluído", idioma): round(ind.percentual_concluido, 1),
                 "SPI": round(ind.spi, 2) if ind.spi is not None else None,
                 "CPI": round(ind.cpi, 2) if ind.cpi is not None else None,
