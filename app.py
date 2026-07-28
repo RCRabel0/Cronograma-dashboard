@@ -717,34 +717,62 @@ with aba_gantt:
     somente_criticas_gantt = col_g2.checkbox(t("Somente críticas", idioma), key="gantt_criticas")
     somente_atrasadas_gantt = col_g3.checkbox(t("Somente atrasadas", idioma), key="gantt_atrasadas")
 
+    sincronizar_periodo_gantt = st.checkbox(
+        t("Sincronizar filtro de data com as outras abas", idioma),
+        key="gantt_sincronizar",
+        help=t(
+            "Quando desmarcado, o Gantt usa seu próprio filtro (por padrão, limitado ao ano atual "
+            "para manter o gráfico rápido em cronogramas grandes) e não afeta nem é afetado pelo "
+            "período das outras abas.",
+            idioma,
+        ),
+    )
+
     tarefas_com_data = [t for t in projeto.tarefas_detalhe if t.inicio and t.termino]
 
     if tarefas_com_data:
         data_min_gantt = min(t.inicio for t in tarefas_com_data)
         data_max_gantt = max(t.termino for t in tarefas_com_data)
 
-        _versao = st.session_state["periodo_versao"]
-        _g_inicio, _g_fim = obter_periodo_global()
-        _gantt_inicio = max(_g_inicio, data_min_gantt)
-        _gantt_fim = min(_g_fim, data_max_gantt)
-        if _gantt_inicio > _gantt_fim:
-            _gantt_inicio, _gantt_fim = data_min_gantt, data_max_gantt
-        _chave_gantt = f"gantt_periodo_v{_versao}"
+        if sincronizar_periodo_gantt:
+            _versao = st.session_state["periodo_versao"]
+            _g_inicio, _g_fim = obter_periodo_global()
+            _gantt_inicio = max(_g_inicio, data_min_gantt)
+            _gantt_fim = min(_g_fim, data_max_gantt)
+            if _gantt_inicio > _gantt_fim:
+                _gantt_inicio, _gantt_fim = data_min_gantt, data_max_gantt
+            _chave_gantt = f"gantt_periodo_v{_versao}"
 
-        def _on_change_gantt_periodo(_chave=_chave_gantt):
-            p = st.session_state[_chave]
-            if isinstance(p, (tuple, list)) and len(p) == 2:
-                definir_periodo_global(p[0], p[1])
+            def _on_change_gantt_periodo(_chave=_chave_gantt):
+                p = st.session_state[_chave]
+                if isinstance(p, (tuple, list)) and len(p) == 2:
+                    definir_periodo_global(p[0], p[1])
 
-        periodo_gantt = st.date_input(
-            t("Filtrar por data (Início/Término cruzando o período)", idioma),
-            value=(_gantt_inicio, _gantt_fim),
-            min_value=data_min_gantt,
-            max_value=data_max_gantt,
-            key=_chave_gantt,
-            on_change=_on_change_gantt_periodo,
-            format=formato_coluna_data(idioma),
-        )
+            periodo_gantt = st.date_input(
+                t("Filtrar por data (Início/Término cruzando o período)", idioma),
+                value=(_gantt_inicio, _gantt_fim),
+                min_value=data_min_gantt,
+                max_value=data_max_gantt,
+                key=_chave_gantt,
+                on_change=_on_change_gantt_periodo,
+                format=formato_coluna_data(idioma),
+            )
+        else:
+            _hoje = date.today()
+            _gantt_inicio_padrao = max(date(_hoje.year, 1, 1), data_min_gantt)
+            _gantt_fim_padrao = min(date(_hoje.year, 12, 31), data_max_gantt)
+            if _gantt_inicio_padrao > _gantt_fim_padrao:
+                _gantt_inicio_padrao, _gantt_fim_padrao = data_min_gantt, data_max_gantt
+
+            periodo_gantt = st.date_input(
+                t("Filtrar por data (Início/Término cruzando o período)", idioma),
+                value=(_gantt_inicio_padrao, _gantt_fim_padrao),
+                min_value=data_min_gantt,
+                max_value=data_max_gantt,
+                key="gantt_periodo_independente",
+                format=formato_coluna_data(idioma),
+            )
+
         if isinstance(periodo_gantt, (tuple, list)) and len(periodo_gantt) == 2:
             filtro_data_inicio, filtro_data_fim = periodo_gantt
         else:

@@ -192,6 +192,13 @@ TRADUCOES: dict[str, str] = {
     "Buscar tarefa pelo nome": "Search task by name",
     "Somente críticas": "Critical only",
     "Somente atrasadas": "Delayed only",
+    "Sincronizar filtro de data com as outras abas": "Sync date filter with the other tabs",
+    "Quando desmarcado, o Gantt usa seu próprio filtro (por padrão, limitado ao ano atual "
+    "para manter o gráfico rápido em cronogramas grandes) e não afeta nem é afetado pelo "
+    "período das outras abas.":
+        "When unchecked, the Gantt uses its own filter (by default limited to the current "
+        "year to keep the chart fast on large schedules) and does not affect nor is affected "
+        "by the period of the other tabs.",
     "Filtrar por data (Início/Término cruzando o período)": "Filter by date (Start/Finish overlapping the period)",
     "Concluída": "Completed",
     "No prazo": "On track",
