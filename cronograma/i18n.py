@@ -213,6 +213,12 @@ TRADUCOES: dict[str, str] = {
     "para manter o desempenho). Use os filtros acima para reduzir a lista e ver as demais.":
         "⚠️ {n} dependency arrow(s) were not drawn (limit of {limite} per chart, "
         "to keep performance reasonable). Use the filters above to shorten the list and see the rest.",
+    "⚠️ Exibindo {limite} de {total} tarefas (priorizando críticas/atrasadas) para manter o "
+    "gráfico rápido. {ocultas} tarefa(s) não aparecem — use os filtros acima (busca, período) "
+    "para reduzir a lista e ver outras tarefas.":
+        "⚠️ Showing {limite} of {total} tasks (prioritizing critical/delayed ones) to keep the "
+        "chart fast. {ocultas} task(s) are not shown — use the filters above (search, period) "
+        "to shorten the list and see other tasks.",
     "Marco": "Milestone",
     "Predecessoras": "Predecessors",
     "⬇️ Baixar relatório do Gantt (Excel)": "⬇️ Download Gantt report (Excel)",

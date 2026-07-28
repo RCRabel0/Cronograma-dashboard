@@ -764,6 +764,21 @@ with aba_gantt:
             t for t in tarefas_gantt if t.inicio <= filtro_data_fim and t.termino >= filtro_data_inicio
         ]
 
+    # Em cronogramas muito grandes, desenhar milhares de linhas deixa o gráfico lento
+    # de montar e de rolar no navegador. Limita a exibição, priorizando tarefas
+    # críticas/atrasadas (mais relevantes), e pede para usar os filtros acima para ver
+    # o restante.
+    limite_tarefas_gantt = 300
+    total_tarefas_gantt_filtrado = len(tarefas_gantt)
+    tarefas_gantt_ocultadas = 0
+    if total_tarefas_gantt_filtrado > limite_tarefas_gantt:
+        tarefas_gantt_ocultadas = total_tarefas_gantt_filtrado - limite_tarefas_gantt
+        tarefas_gantt = sorted(
+            tarefas_gantt,
+            key=lambda t: (not (t.critica and t.atrasada), not t.atrasada, not t.critica, t.inicio),
+        )[:limite_tarefas_gantt]
+        tarefas_gantt.sort(key=lambda t: (t.inicio, t.id))
+
     def t_(texto):
         return t(texto, idioma)
 
@@ -922,6 +937,18 @@ with aba_gantt:
             margin=dict(t=70),
         )
         st.plotly_chart(fig_gantt, width="stretch")
+        if tarefas_gantt_ocultadas:
+            st.warning(
+                tf(
+                    "⚠️ Exibindo {limite} de {total} tarefas (priorizando críticas/atrasadas) para manter o "
+                    "gráfico rápido. {ocultas} tarefa(s) não aparecem — use os filtros acima (busca, período) "
+                    "para reduzir a lista e ver outras tarefas.",
+                    idioma,
+                    limite=limite_tarefas_gantt,
+                    total=total_tarefas_gantt_filtrado,
+                    ocultas=tarefas_gantt_ocultadas,
+                )
+            )
         if data_status:
             st.caption(
                 tf("A linha pontilhada vertical marca a Data de status ({data}).", idioma, data=formatar_data(data_status, idioma))
