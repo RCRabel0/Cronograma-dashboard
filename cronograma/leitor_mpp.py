@@ -113,6 +113,7 @@ def ler_mpp(caminho: str) -> Projeto:
     """
     try:
         import jpype
+        import mpxj  # noqa: F401 - o import registra os .jar do MPXJ no classpath, precisa vir antes do startJVM
 
         if not jpype.isJVMStarted():
             jpype.startJVM()
@@ -182,7 +183,7 @@ def ler_mpp(caminho: str) -> Projeto:
             wbs=_wbs(t),
         )
         for relacao in t.getPredecessors() or []:
-            tarefa_pred = relacao.getTargetTask()
+            tarefa_pred = relacao.getPredecessorTask()
             if tarefa_pred is None:
                 continue
             tipo = _TIPO_RELACAO.get(str(relacao.getType()), 1)
