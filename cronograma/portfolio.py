@@ -59,7 +59,6 @@ def tabela_comparativa(projetos: dict[str, Projeto], indicadores_por_projeto: di
                 t("Início", idioma): formatar_data(projeto.inicio, idioma) if projeto.inicio else t("N/D", idioma),
                 t("Término", idioma): formatar_data(projeto.termino, idioma) if projeto.termino else t("N/D", idioma),
                 t("Data de status", idioma): formatar_data(data_status_projeto(projeto), idioma),
-                t("Linhas de Base Salvas", idioma): projeto.numero_baselines_salvas,
                 t("Linha de Base Ativa", idioma): _periodo_linha_base_ativa(projeto, idioma),
                 t("% Concluído", idioma): round(ind.percentual_concluido, 1),
                 "SPI": round(ind.spi, 2) if ind.spi is not None else None,
