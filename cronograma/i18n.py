@@ -215,6 +215,12 @@ TRADUCOES: dict[str, str] = {
     "Itens avaliados automaticamente a partir dos dados do arquivo.":
         "Items assessed automatically from the file's data.",
     "Pontuação": "Score",
+    "Cada item vale até 2 pontos (Conforme = 2, Parcial = 1, Não Conforme = 0). "
+    "{avaliados} de {total} itens contam na pontuação — os demais ficaram "
+    "'N/A' e não entram no total, por isso o máximo é {maximo} (não {total_x2}).":
+        "Each item is worth up to 2 points (Compliant = 2, Partial = 1, Non-compliant = 0). "
+        "{avaliados} of {total} items count toward the score — the rest were "
+        "'N/A' and are excluded from the total, which is why the maximum is {maximo} (not {total_x2}).",
     "Percentual": "Percentage",
     "Maturidade": "Maturity",
     "{avaliados} de {total} itens contam na pontuação.":

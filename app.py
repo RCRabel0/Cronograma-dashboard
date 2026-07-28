@@ -896,7 +896,20 @@ with aba_checklist:
     resultado_checklist = calcular_pontuacao(itens_checklist)
 
     c1, c2, c3 = st.columns(3)
-    c1.metric(t("Pontuação", idioma), f"{resultado_checklist['pontos']} / {resultado_checklist['maximo']}")
+    c1.metric(
+        t("Pontuação", idioma),
+        f"{resultado_checklist['pontos']} / {resultado_checklist['maximo']}",
+        help=tf(
+            "Cada item vale até 2 pontos (Conforme = 2, Parcial = 1, Não Conforme = 0). "
+            "{avaliados} de {total} itens contam na pontuação — os demais ficaram "
+            "'N/A' e não entram no total, por isso o máximo é {maximo} (não {total_x2}).",
+            idioma,
+            avaliados=resultado_checklist["itens_avaliados"],
+            total=resultado_checklist["total_itens"],
+            maximo=resultado_checklist["maximo"],
+            total_x2=resultado_checklist["total_itens"] * 2,
+        ),
+    )
     c2.metric(t("Percentual", idioma), f"{resultado_checklist['percentual']:.1f}%")
     c3.metric(t("Maturidade", idioma), t(resultado_checklist["classificacao"], idioma))
     st.progress(min(resultado_checklist["percentual"] / 100, 1.0))
