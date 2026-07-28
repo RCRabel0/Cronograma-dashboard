@@ -37,6 +37,17 @@ def formato_coluna_data(idioma: str) -> str:
 
 TRADUCOES: dict[str, str] = {
     # --- Barra lateral / topo ---
+    "💬 Enviar sugestão": "💬 Send a suggestion",
+    "Sua sugestão ou comentário": "Your suggestion or comment",
+    "Seu e-mail (opcional, para resposta)": "Your email (optional, for a reply)",
+    "Enviar": "Send",
+    "Escreva uma mensagem (pelo menos alguns caracteres) antes de enviar.":
+        "Write a message (at least a few characters) before sending.",
+    "Limite de sugestões enviadas nesta sessão foi atingido.":
+        "The limit of suggestions sent in this session has been reached.",
+    "Sugestão enviada, obrigado!": "Suggestion sent, thank you!",
+    "O envio de sugestões não está disponível no momento.": "Sending suggestions is not available right now.",
+    "Não foi possível enviar sua sugestão: {erro}": "Could not send your suggestion: {erro}",
     "📁 Cronograma": "📁 Schedule",
     "Envie o(s) arquivo(s) do cronograma": "Upload the schedule file(s)",
     "Arquivo .mpp do MS Project, ou .xml exportado via Arquivo > Salvar Como > XML. "

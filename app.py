@@ -1,6 +1,8 @@
 import os
+import smtplib
 import tempfile
 from datetime import date, datetime
+from email.mime.text import MIMEText
 
 import pandas as pd
 import plotly.express as px
@@ -114,6 +116,64 @@ idioma_escolha = st.sidebar.segmented_control(
     "Idioma / Language", ["Português", "English"], default="Português", key="idioma_ui", required=True
 )
 idioma = "en" if idioma_escolha == "English" else "pt"
+st.sidebar.divider()
+
+
+def _enviar_sugestao_por_email(mensagem: str, contato: str) -> tuple[bool, str]:
+    """Envia a sugestão por e-mail via SMTP configurado em st.secrets.
+
+    Retorna (sucesso, motivo_erro). motivo_erro == "config_ausente" indica que as
+    credenciais de SMTP (smtp_host/smtp_port/smtp_user/smtp_password) não foram
+    configuradas em st.secrets — nesse caso o recurso simplesmente não funciona.
+    """
+    try:
+        smtp_host = st.secrets["smtp_host"]
+        smtp_port = int(st.secrets["smtp_port"])
+        smtp_user = st.secrets["smtp_user"]
+        smtp_password = st.secrets["smtp_password"]
+    except Exception:
+        return False, "config_ausente"
+
+    corpo = mensagem
+    if contato:
+        corpo += f"\n\n---\nContato informado pelo usuário: {contato}"
+
+    msg = MIMEText(corpo, "plain", "utf-8")
+    msg["Subject"] = "Sugestão - Dashboard de Cronograma"
+    msg["From"] = smtp_user
+    msg["To"] = "roberto.rabelo@outlook.com.br"
+
+    try:
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as servidor:
+            servidor.starttls()
+            servidor.login(smtp_user, smtp_password)
+            servidor.sendmail(smtp_user, ["roberto.rabelo@outlook.com.br"], msg.as_string())
+        return True, ""
+    except Exception as e:
+        return False, str(e)
+
+
+with st.sidebar.expander(t("💬 Enviar sugestão", idioma)):
+    with st.form("form_sugestao", clear_on_submit=True):
+        mensagem_sugestao = st.text_area(t("Sua sugestão ou comentário", idioma), max_chars=2000)
+        contato_sugestao = st.text_input(t("Seu e-mail (opcional, para resposta)", idioma))
+        enviar_sugestao = st.form_submit_button(t("Enviar", idioma))
+
+    if enviar_sugestao:
+        if not mensagem_sugestao or len(mensagem_sugestao.strip()) < 5:
+            st.warning(t("Escreva uma mensagem (pelo menos alguns caracteres) antes de enviar.", idioma))
+        elif st.session_state.get("sugestoes_enviadas", 0) >= 5:
+            st.warning(t("Limite de sugestões enviadas nesta sessão foi atingido.", idioma))
+        else:
+            sucesso, motivo = _enviar_sugestao_por_email(mensagem_sugestao.strip(), contato_sugestao.strip())
+            if sucesso:
+                st.session_state["sugestoes_enviadas"] = st.session_state.get("sugestoes_enviadas", 0) + 1
+                st.success(t("Sugestão enviada, obrigado!", idioma))
+            elif motivo == "config_ausente":
+                st.error(t("O envio de sugestões não está disponível no momento.", idioma))
+            else:
+                st.error(tf("Não foi possível enviar sua sugestão: {erro}", idioma, erro=motivo))
+
 st.sidebar.divider()
 
 
