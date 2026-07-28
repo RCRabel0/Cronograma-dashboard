@@ -167,8 +167,10 @@ TRADUCOES: dict[str, str] = {
     "Tarefas": "Tasks",
     "Mostrar apenas tarefas atrasadas": "Show only delayed tasks",
     "Mostrar apenas tarefas críticas": "Show only critical tasks",
-    "🟪 Roxo = tarefa crítica · 🟥 Vermelho = atrasada · Vermelho mais forte = crítica e atrasada.":
-        "🟪 Purple = critical task · 🟥 Red = delayed · Stronger red = critical and delayed.",
+    "🟪 Roxo = tarefa crítica · 🟥 Vermelho = atrasada · Vermelho mais forte = crítica e atrasada · "
+    "🟨 Amarelo = marco.":
+        "🟪 Purple = critical task · 🟥 Red = delayed · Stronger red = critical and delayed · "
+        "🟨 Yellow = milestone.",
     "⬇️ Baixar relatório de tarefas (Excel)": "⬇️ Download tasks report (Excel)",
     "Planejado x Executado por período": "Planned vs Executed by period",
     "Não há datas suficientes no arquivo para montar o filtro por período.":

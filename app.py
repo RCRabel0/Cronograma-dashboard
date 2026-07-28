@@ -503,6 +503,8 @@ with aba_tarefas:
             cor = "background-color: #f8d7da"
         elif linha["Crítica"] == "Sim":
             cor = "background-color: #d7bde2"
+        elif linha["Marco"] == "Sim":
+            cor = "background-color: #f9e79f"
         else:
             cor = ""
         return [cor] * len(linha)
@@ -519,7 +521,11 @@ with aba_tarefas:
         },
     )
     st.caption(
-        t("🟪 Roxo = tarefa crítica · 🟥 Vermelho = atrasada · Vermelho mais forte = crítica e atrasada.", idioma)
+        t(
+            "🟪 Roxo = tarefa crítica · 🟥 Vermelho = atrasada · Vermelho mais forte = crítica e atrasada · "
+            "🟨 Amarelo = marco.",
+            idioma,
+        )
     )
     st.download_button(
         t("⬇️ Baixar relatório de tarefas (Excel)", idioma),

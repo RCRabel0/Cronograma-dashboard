@@ -59,6 +59,7 @@ def tabela_tarefas(projeto: Projeto) -> pd.DataFrame:
                 "Início (linha de base)": t.inicio_linha_base,
                 "Término (linha de base)": t.termino_linha_base,
                 "% Concluído": t.percentual_concluido,
+                "Marco": "Sim" if t.marco else "Não",
                 "Crítica": "Sim" if t.critica else "Não",
                 "Atrasada": "Sim" if t.atrasada else "Não",
                 "Duração Planejada (h)": t.duracao_linha_base_horas or t.duracao_horas,
