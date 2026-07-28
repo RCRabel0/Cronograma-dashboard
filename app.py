@@ -165,27 +165,26 @@ if st.sidebar.button(t("🧹 Limpar filtro de datas", idioma)):
 
 if portfolio_ativo:
     st.title(t("📊 Portfólio", idioma))
-    st.caption(tf("**Detalhando o projeto:** {v}", idioma, v=projeto.nome))
 else:
     st.title(f"📊 {projeto.nome}")
-_resumo_projeto = projeto.tarefa_resumo_projeto
-_inicio_lb = _resumo_projeto.inicio_linha_base if _resumo_projeto else None
-_termino_lb = _resumo_projeto.termino_linha_base if _resumo_projeto else None
-if _inicio_lb or _termino_lb:
-    _periodo_lb_ativa = tf(
-        "{inicio} a {termino}", idioma,
-        inicio=formatar_data(_inicio_lb, idioma) if _inicio_lb else t("N/D", idioma),
-        termino=formatar_data(_termino_lb, idioma) if _termino_lb else t("N/D", idioma),
-    )
-else:
-    _periodo_lb_ativa = t("N/D", idioma)
+    _resumo_projeto = projeto.tarefa_resumo_projeto
+    _inicio_lb = _resumo_projeto.inicio_linha_base if _resumo_projeto else None
+    _termino_lb = _resumo_projeto.termino_linha_base if _resumo_projeto else None
+    if _inicio_lb or _termino_lb:
+        _periodo_lb_ativa = tf(
+            "{inicio} a {termino}", idioma,
+            inicio=formatar_data(_inicio_lb, idioma) if _inicio_lb else t("N/D", idioma),
+            termino=formatar_data(_termino_lb, idioma) if _termino_lb else t("N/D", idioma),
+        )
+    else:
+        _periodo_lb_ativa = t("N/D", idioma)
 
-info_cols = st.columns(5)
-info_cols[0].caption(tf("**Início:** {v}", idioma, v=formatar_data(projeto.inicio, idioma) if projeto.inicio else t("N/D", idioma)))
-info_cols[1].caption(tf("**Término:** {v}", idioma, v=formatar_data(projeto.termino, idioma) if projeto.termino else t("N/D", idioma)))
-info_cols[2].caption(tf("**Data de status:** {v}", idioma, v=formatar_data(data_status, idioma)))
-info_cols[3].caption(tf("**Linhas de base salvas:** {v}", idioma, v=projeto.numero_baselines_salvas))
-info_cols[4].caption(tf("**Linha de base ativa:** {v}", idioma, v=_periodo_lb_ativa))
+    info_cols = st.columns(5)
+    info_cols[0].caption(tf("**Início:** {v}", idioma, v=formatar_data(projeto.inicio, idioma) if projeto.inicio else t("N/D", idioma)))
+    info_cols[1].caption(tf("**Término:** {v}", idioma, v=formatar_data(projeto.termino, idioma) if projeto.termino else t("N/D", idioma)))
+    info_cols[2].caption(tf("**Data de status:** {v}", idioma, v=formatar_data(data_status, idioma)))
+    info_cols[3].caption(tf("**Linhas de base salvas:** {v}", idioma, v=projeto.numero_baselines_salvas))
+    info_cols[4].caption(tf("**Linha de base ativa:** {v}", idioma, v=_periodo_lb_ativa))
 
 _nomes_abas = []
 if portfolio_ativo:
