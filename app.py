@@ -206,6 +206,14 @@ if "periodo_global" not in st.session_state:
 if "periodo_versao" not in st.session_state:
     st.session_state["periodo_versao"] = 0
 
+if st.session_state.get("_projeto_selecionado_anterior") != nome_projeto_atual:
+    # Ao trocar de projeto (seletor de portfólio ou novo upload), limpa o filtro de
+    # datas compartilhado para o período completo do projeto recém-selecionado, em
+    # vez de manter um filtro que pode não fazer sentido nenhum para os novos dados.
+    st.session_state["_projeto_selecionado_anterior"] = nome_projeto_atual
+    st.session_state["periodo_global"] = (data_min_projeto, data_max_projeto)
+    st.session_state["periodo_versao"] = st.session_state.get("periodo_versao", 0) + 1
+
 
 def obter_periodo_global() -> tuple[date, date]:
     inicio, fim = st.session_state["periodo_global"]
@@ -769,7 +777,7 @@ with aba_gantt:
                 value=(_gantt_inicio_padrao, _gantt_fim_padrao),
                 min_value=data_min_gantt,
                 max_value=data_max_gantt,
-                key="gantt_periodo_independente",
+                key=f"gantt_periodo_independente_v{st.session_state['periodo_versao']}",
                 format=formato_coluna_data(idioma),
             )
 
