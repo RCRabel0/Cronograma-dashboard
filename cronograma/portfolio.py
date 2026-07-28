@@ -5,7 +5,7 @@ from datetime import date
 import pandas as pd
 
 from .curva_s import gerar_curva_s
-from .i18n import t
+from .i18n import formatar_data, t, tf
 from .metricas import Indicadores, calcular_indicadores
 from .modelos import Projeto
 
@@ -36,6 +36,19 @@ def pesos_relativos(projetos: dict[str, Projeto]) -> dict[str, float]:
     return {nome: peso / total * 100 for nome, peso in pesos.items()}
 
 
+def _periodo_linha_base_ativa(projeto: Projeto, idioma: str) -> str:
+    resumo = projeto.tarefa_resumo_projeto
+    inicio_lb = resumo.inicio_linha_base if resumo else None
+    termino_lb = resumo.termino_linha_base if resumo else None
+    if not inicio_lb and not termino_lb:
+        return t("N/D", idioma)
+    return tf(
+        "{inicio} a {termino}", idioma,
+        inicio=formatar_data(inicio_lb, idioma) if inicio_lb else t("N/D", idioma),
+        termino=formatar_data(termino_lb, idioma) if termino_lb else t("N/D", idioma),
+    )
+
+
 def tabela_comparativa(projetos: dict[str, Projeto], indicadores_por_projeto: dict[str, Indicadores], idioma: str = "pt") -> pd.DataFrame:
     linhas = []
     for nome, projeto in projetos.items():
@@ -43,6 +56,11 @@ def tabela_comparativa(projetos: dict[str, Projeto], indicadores_por_projeto: di
         linhas.append(
             {
                 t("Projeto", idioma): projeto.nome,
+                t("Início", idioma): formatar_data(projeto.inicio, idioma) if projeto.inicio else t("N/D", idioma),
+                t("Término", idioma): formatar_data(projeto.termino, idioma) if projeto.termino else t("N/D", idioma),
+                t("Data de status", idioma): formatar_data(data_status_projeto(projeto), idioma),
+                t("Linhas de Base Salvas", idioma): projeto.numero_baselines_salvas,
+                t("Linha de Base Ativa", idioma): _periodo_linha_base_ativa(projeto, idioma),
                 t("% Concluído", idioma): round(ind.percentual_concluido, 1),
                 "SPI": round(ind.spi, 2) if ind.spi is not None else None,
                 "CPI": round(ind.cpi, 2) if ind.cpi is not None else None,

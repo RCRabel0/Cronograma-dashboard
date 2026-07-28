@@ -3,7 +3,7 @@ import io
 import pandas as pd
 from openpyxl.chart import LineChart, Reference
 from reportlab.lib import colors
-from reportlab.lib.pagesizes import A4
+from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
 from reportlab.platypus import (
@@ -222,9 +222,13 @@ def _grafico_curva_s_portfolio_png(curva_portfolio: pd.DataFrame) -> bytes:
 
 def gerar_pdf_portfolio(tabela_comparativa: pd.DataFrame, consolidado: dict, curva_portfolio: pd.DataFrame) -> bytes:
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=1.5 * cm, bottomMargin=1.5 * cm)
+    doc = SimpleDocTemplate(
+        buffer, pagesize=landscape(A4),
+        topMargin=1.2 * cm, bottomMargin=1.2 * cm, leftMargin=1.2 * cm, rightMargin=1.2 * cm,
+    )
     estilos = getSampleStyleSheet()
     elementos = []
+    largura_util = landscape(A4)[0] - 2.4 * cm
 
     elementos.append(Paragraph("Relatório de Portfólio de Projetos", estilos["Title"]))
     elementos.append(Spacer(1, 0.5 * cm))
@@ -258,7 +262,7 @@ def gerar_pdf_portfolio(tabela_comparativa: pd.DataFrame, consolidado: dict, cur
     elementos.append(Paragraph("Curva S Consolidada do Portfólio", estilos["Heading2"]))
     if not curva_portfolio.empty:
         png_curva = _grafico_curva_s_portfolio_png(curva_portfolio)
-        elementos.append(_imagem_proporcional(png_curva, 17, 9))
+        elementos.append(_imagem_proporcional(png_curva, largura_util / cm, 9))
     else:
         elementos.append(Paragraph("Não foi possível gerar a Curva S consolidada.", estilos["Normal"]))
     elementos.append(Spacer(1, 0.7 * cm))
@@ -269,12 +273,16 @@ def gerar_pdf_portfolio(tabela_comparativa: pd.DataFrame, consolidado: dict, cur
     estilo_cabecalho = ParagraphStyle("cabecalho_comp", parent=estilos["Normal"], fontSize=7, textColor=colors.white, leading=8.5)
     estilo_celula = ParagraphStyle("celula_comp", parent=estilos["Normal"], fontSize=7, leading=8.5)
 
-    # A coluna "Projeto" recebe mais espaço (nomes longos); as demais, colunas estreitas
-    # e numéricas, dividem o restante — todas usando Paragraph para quebrar linha em vez
-    # de estourar e sobrepor o texto da coluna vizinha.
-    largura_projeto = 5 * cm
-    largura_restante = (17 * cm - largura_projeto) / (len(colunas) - 1)
-    larguras = [largura_projeto if c == colunas[0] else largura_restante for c in colunas]
+    # Colunas com texto tipicamente mais longo (nome do projeto, período da linha de
+    # base) recebem mais espaço; as demais (datas curtas e números) dividem o restante.
+    # Todas as células usam Paragraph para quebrar linha em vez de estourar e sobrepor
+    # a coluna vizinha.
+    largura_larga = 3.2 * cm
+    colunas_largas = {colunas[0], "Linha de Base Ativa", "Active Baseline"}
+    n_largas = sum(1 for c in colunas if c in colunas_largas)
+    n_estreitas = len(colunas) - n_largas
+    largura_estreita = (largura_util - largura_larga * n_largas) / n_estreitas if n_estreitas else largura_util / len(colunas)
+    larguras = [largura_larga if c in colunas_largas else largura_estreita for c in colunas]
 
     dados_tabela = [[Paragraph(str(c), estilo_cabecalho) for c in colunas]]
     for _, linha in tabela_comparativa.iterrows():

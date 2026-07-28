@@ -74,6 +74,9 @@ TRADUCOES: dict[str, str] = {
 
     # --- Portfólio ---
     "Portfólio de Projetos": "Project Portfolio",
+    "Data de status": "Status date",
+    "Linhas de Base Salvas": "Saved Baselines",
+    "Linha de Base Ativa": "Active Baseline",
     "Projetos": "Projects",
     "Projetos Atrasados": "Delayed Projects",
     "Tarefas Atrasadas": "Delayed Tasks",
