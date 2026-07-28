@@ -7,35 +7,99 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-from cronograma.checklist import avaliar_checklist, calcular_pontuacao
-from cronograma.curva_s import gerar_curva_s
+from cronograma.checklist import avaliar_checklist as _avaliar_checklist_impl
+from cronograma.checklist import calcular_pontuacao
+from cronograma.curva_s import gerar_curva_s as _gerar_curva_s_impl
 from cronograma.i18n import formatar_data, formato_coluna_data, t, tf
 from cronograma.leitor_mpp import MpxjIndisponivelError, ler_mpp
 from cronograma.leitor_xml import ArquivoInvalidoError, ler_xml
 from cronograma.metricas import (
-    calcular_indicadores,
+    calcular_indicadores as _calcular_indicadores_impl,
     dias_atraso_tarefa,
     formatar_valor,
     gerar_percepcoes,
 )
 from cronograma.portfolio import (
-    calcular_indicadores_portfolio,
-    gerar_curva_s_portfolio,
+    calcular_indicadores_portfolio as _calcular_indicadores_portfolio_impl,
+    gerar_curva_s_portfolio as _gerar_curva_s_portfolio_impl,
     indicadores_consolidados,
     periodo_linha_base_ativa,
     pesos_relativos,
     tabela_comparativa,
 )
 from cronograma.relatorios import (
-    gerar_excel,
-    gerar_excel_portfolio,
-    gerar_excel_tabela,
-    gerar_pdf,
-    gerar_pdf_executivo,
-    gerar_pdf_portfolio,
+    gerar_excel as _gerar_excel_impl,
+    gerar_excel_portfolio as _gerar_excel_portfolio_impl,
+    gerar_excel_tabela as _gerar_excel_tabela_impl,
+    gerar_pdf as _gerar_pdf_impl,
+    gerar_pdf_executivo as _gerar_pdf_executivo_impl,
+    gerar_pdf_portfolio as _gerar_pdf_portfolio_impl,
     tabela_recursos,
     tabela_tarefas,
 )
+
+
+# As funções abaixo (indicadores, Curva S, checklist) fazem várias passagens sobre
+# todas as tarefas do projeto; sem cache, eram recalculadas do zero a cada interação
+# (clicar num checkbox, trocar de aba etc.), o que deixava o app lento em cronogramas
+# grandes. @st.cache_data memoriza o resultado enquanto os argumentos não mudarem.
+@st.cache_data(show_spinner=False)
+def calcular_indicadores(projeto, data_status=None):
+    return _calcular_indicadores_impl(projeto, data_status)
+
+
+@st.cache_data(show_spinner=False)
+def gerar_curva_s(projeto, data_status=None, percentual_concluido_alvo=None):
+    return _gerar_curva_s_impl(projeto, data_status, percentual_concluido_alvo=percentual_concluido_alvo)
+
+
+@st.cache_data(show_spinner=False)
+def avaliar_checklist(projeto, indicadores, idioma="pt"):
+    return _avaliar_checklist_impl(projeto, indicadores, idioma=idioma)
+
+
+@st.cache_data(show_spinner=False)
+def calcular_indicadores_portfolio(projetos):
+    return _calcular_indicadores_portfolio_impl(projetos)
+
+
+@st.cache_data(show_spinner=False)
+def gerar_curva_s_portfolio(projetos, indicadores_por_projeto):
+    return _gerar_curva_s_portfolio_impl(projetos, indicadores_por_projeto)
+
+
+# Os botões de download passam os bytes do relatório já prontos (data=...), então o
+# Streamlit gera o Excel/PDF a cada execução do script, mesmo sem ninguém clicar no
+# botão. Cachear evita recriar (com matplotlib/reportlab) o mesmo arquivo repetidas
+# vezes só porque o usuário mexeu em outro filtro/aba.
+@st.cache_data(show_spinner=False)
+def gerar_excel_tabela(df, nome_planilha="Tarefas"):
+    return _gerar_excel_tabela_impl(df, nome_planilha)
+
+
+@st.cache_data(show_spinner=False)
+def gerar_excel(projeto, indicadores, curva_s):
+    return _gerar_excel_impl(projeto, indicadores, curva_s)
+
+
+@st.cache_data(show_spinner=False)
+def gerar_pdf(projeto, indicadores, percepcoes, curva_s):
+    return _gerar_pdf_impl(projeto, indicadores, percepcoes, curva_s)
+
+
+@st.cache_data(show_spinner=False)
+def gerar_pdf_executivo(projeto, indicadores, curva_periodo, tarefas_periodo, periodo_inicio, periodo_fim, data_status):
+    return _gerar_pdf_executivo_impl(projeto, indicadores, curva_periodo, tarefas_periodo, periodo_inicio, periodo_fim, data_status)
+
+
+@st.cache_data(show_spinner=False)
+def gerar_excel_portfolio(tabela_comp, consolidado, curva_portfolio):
+    return _gerar_excel_portfolio_impl(tabela_comp, consolidado, curva_portfolio)
+
+
+@st.cache_data(show_spinner=False)
+def gerar_pdf_portfolio(tabela_comp, consolidado, curva_portfolio):
+    return _gerar_pdf_portfolio_impl(tabela_comp, consolidado, curva_portfolio)
 
 _idioma_salvo = st.session_state.get("idioma_ui", "Português")
 _idioma_inicial = "en" if _idioma_salvo == "English" else "pt"
