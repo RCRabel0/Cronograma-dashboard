@@ -206,21 +206,22 @@ arquivos = st.sidebar.file_uploader(
     ),
 )
 
-if arquivos:
-    projetos_carregados = {}
-    for arquivo in arquivos:
-        try:
-            projetos_carregados[arquivo.name] = processar_arquivo(arquivo.getvalue(), arquivo.name)
-        except ArquivoInvalidoError as e:
-            st.sidebar.error(tf("Não foi possível ler o arquivo {nome}: {erro}", idioma, nome=arquivo.name, erro=e))
-        except MpxjIndisponivelError as e:
-            st.sidebar.error(str(e))
-        except ValueError as e:
-            st.sidebar.error(str(e))
-        except Exception as e:
-            st.sidebar.error(tf("Ocorreu um erro inesperado ao ler o arquivo {nome}: {erro}", idioma, nome=arquivo.name, erro=e))
-    if projetos_carregados:
-        st.session_state["projetos"] = projetos_carregados
+projetos_carregados = {}
+for arquivo in arquivos or []:
+    try:
+        projetos_carregados[arquivo.name] = processar_arquivo(arquivo.getvalue(), arquivo.name)
+    except ArquivoInvalidoError as e:
+        st.sidebar.error(tf("Não foi possível ler o arquivo {nome}: {erro}", idioma, nome=arquivo.name, erro=e))
+    except MpxjIndisponivelError as e:
+        st.sidebar.error(str(e))
+    except ValueError as e:
+        st.sidebar.error(str(e))
+    except Exception as e:
+        st.sidebar.error(tf("Ocorreu um erro inesperado ao ler o arquivo {nome}: {erro}", idioma, nome=arquivo.name, erro=e))
+# Sincroniza sempre com o que está no uploader agora — se a pessoa remover um ou
+# todos os arquivos, o estado da sessão (e as abas) refletem isso imediatamente,
+# em vez de continuar mostrando dados de um arquivo que já foi removido.
+st.session_state["projetos"] = projetos_carregados
 
 if not st.session_state.get("projetos"):
     st.title(t("📊 Dashboard de Cronograma de Projeto", idioma))
