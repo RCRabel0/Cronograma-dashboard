@@ -860,10 +860,18 @@ with aba_gantt:
 
         mapa_tarefa_visivel = {t.uid: t for t in tarefas_gantt}
         mapa_rotulo_visivel = {t.uid: rotulo for t, rotulo in zip(barras + marcos_gantt, todas_linhas_y)}
+        # Em cronogramas muito grandes, desenhar uma anotação de seta por dependência
+        # fica lento (e ilegível) — limita a um número razoável e avisa se cortou.
+        limite_setas = 300
+        setas_desenhadas = 0
+        setas_ocultadas = 0
         for tarefa_dest in tarefas_gantt:
             for dep in tarefa_dest.dependencias:
                 tarefa_orig = mapa_tarefa_visivel.get(dep.predecessora_uid)
                 if tarefa_orig is None:
+                    continue
+                if setas_desenhadas >= limite_setas:
+                    setas_ocultadas += 1
                     continue
                 if dep.tipo == 0:
                     x_origem, x_destino = tarefa_orig.termino, tarefa_dest.termino
@@ -889,6 +897,7 @@ with aba_gantt:
                     arrowcolor="rgba(190,190,190,0.55)",
                     text="",
                 )
+                setas_desenhadas += 1
 
         if data_status:
             fig_gantt.add_vline(
@@ -926,6 +935,16 @@ with aba_gantt:
                 n=total_linhas,
             )
         )
+        if setas_ocultadas:
+            st.caption(
+                tf(
+                    "⚠️ {n} seta(s) de dependência não foram desenhadas (limite de {limite} por gráfico, "
+                    "para manter o desempenho). Use os filtros acima para reduzir a lista e ver as demais.",
+                    idioma,
+                    n=setas_ocultadas,
+                    limite=limite_setas,
+                )
+            )
 
         mapa_id_global = {t.uid: t.id for t in projeto.tarefas_detalhe}
         df_relatorio_gantt = pd.DataFrame(

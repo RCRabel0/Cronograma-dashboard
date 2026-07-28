@@ -209,6 +209,10 @@ TRADUCOES: dict[str, str] = {
         "Showing {n} task(s). Diamonds represent milestones; the number inside the bars is the % complete. "
         "Gray arrows indicate dependencies between tasks (they only show when both predecessor and successor are "
         "visible with the current filters). Use the filters above to shorten the list on large projects.",
+    "⚠️ {n} seta(s) de dependência não foram desenhadas (limite de {limite} por gráfico, "
+    "para manter o desempenho). Use os filtros acima para reduzir a lista e ver as demais.":
+        "⚠️ {n} dependency arrow(s) were not drawn (limit of {limite} per chart, "
+        "to keep performance reasonable). Use the filters above to shorten the list and see the rest.",
     "Marco": "Milestone",
     "Predecessoras": "Predecessors",
     "⬇️ Baixar relatório do Gantt (Excel)": "⬇️ Download Gantt report (Excel)",
