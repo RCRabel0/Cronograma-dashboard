@@ -241,10 +241,8 @@ else:
     info_cols[3].caption(tf("**Linhas de base salvas:** {v}", idioma, v=projeto.numero_baselines_salvas))
     info_cols[4].caption(tf("**Linha de base ativa:** {v}", idioma, v=_periodo_lb_ativa))
 
-_nomes_abas = []
-if portfolio_ativo:
-    _nomes_abas.append(t("📊 Portfólio", idioma))
-_nomes_abas += [
+_nomes_abas = [
+    t("📊 Portfólio", idioma),
     t("📈 Resumo", idioma),
     t("📉 Curva S", idioma),
     t("✅ Tarefas", idioma),
@@ -253,133 +251,128 @@ _nomes_abas += [
     t("👥 Recursos", idioma),
     t("📤 Exportar", idioma),
 ]
-_abas = st.tabs(_nomes_abas)
-if portfolio_ativo:
-    aba_portfolio, aba_resumo, aba_curva, aba_tarefas, aba_gantt, aba_checklist, aba_recursos, aba_exportar = _abas
-else:
-    aba_resumo, aba_curva, aba_tarefas, aba_gantt, aba_checklist, aba_recursos, aba_exportar = _abas
+aba_portfolio, aba_resumo, aba_curva, aba_tarefas, aba_gantt, aba_checklist, aba_recursos, aba_exportar = st.tabs(_nomes_abas)
 
-if portfolio_ativo:
-    with aba_portfolio:
-        st.subheader(t("Portfólio de Projetos", idioma))
+with aba_portfolio:
+    st.subheader(t("Portfólio de Projetos", idioma))
 
-        indicadores_portfolio = calcular_indicadores_portfolio(projetos)
-        consolidado = indicadores_consolidados(projetos, indicadores_portfolio)
+    indicadores_portfolio = calcular_indicadores_portfolio(projetos)
+    consolidado = indicadores_consolidados(projetos, indicadores_portfolio)
 
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric(t("Projetos", idioma), consolidado["total_projetos"])
-        c2.metric(t("% Concluído", idioma), f"{consolidado['percentual_concluido']:.1f}%")
-        c3.metric("SPI", f"{consolidado['spi']:.2f}" if consolidado["spi"] is not None else t("N/D", idioma))
-        c4.metric("CPI", f"{consolidado['cpi']:.2f}" if consolidado["cpi"] is not None else t("N/D", idioma))
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric(t("Projetos", idioma), consolidado["total_projetos"])
+    c2.metric(t("% Concluído", idioma), f"{consolidado['percentual_concluido']:.1f}%")
+    c3.metric("SPI", f"{consolidado['spi']:.2f}" if consolidado["spi"] is not None else t("N/D", idioma))
+    c4.metric("CPI", f"{consolidado['cpi']:.2f}" if consolidado["cpi"] is not None else t("N/D", idioma))
 
-        c5, c6, c7, c8 = st.columns(4)
-        c5.metric(t("Projetos Atrasados", idioma), consolidado["projetos_atrasados"])
-        c6.metric(t("Tarefas Atrasadas", idioma), consolidado["tarefas_atrasadas"])
-        c7.metric(t("Críticas Atrasadas", idioma), consolidado["tarefas_criticas_atrasadas"])
-        c8.metric(t("Total de Tarefas", idioma), consolidado["total_tarefas"])
+    c5, c6, c7, c8 = st.columns(4)
+    c5.metric(t("Projetos Atrasados", idioma), consolidado["projetos_atrasados"])
+    c6.metric(t("Tarefas Atrasadas", idioma), consolidado["tarefas_atrasadas"])
+    c7.metric(t("Críticas Atrasadas", idioma), consolidado["tarefas_criticas_atrasadas"])
+    c8.metric(t("Total de Tarefas", idioma), consolidado["total_tarefas"])
 
-        st.divider()
-        st.subheader(t("Comparativo entre Projetos", idioma))
-        tabela_port = tabela_comparativa(projetos, indicadores_portfolio, idioma=idioma)
-        st.dataframe(
-            tabela_port,
-            hide_index=True,
-            width="stretch",
-            column_config={
-                tabela_port.columns[0]: st.column_config.TextColumn(width="large"),
-            },
+    st.divider()
+    st.subheader(t("Comparativo entre Projetos", idioma))
+    tabela_port = tabela_comparativa(projetos, indicadores_portfolio, idioma=idioma)
+    st.dataframe(
+        tabela_port,
+        hide_index=True,
+        width="stretch",
+        column_config={
+            tabela_port.columns[0]: st.column_config.TextColumn(width="large"),
+        },
+    )
+
+    st.divider()
+    st.subheader(t("Curva S Consolidada do Portfólio", idioma))
+    curva_portfolio = gerar_curva_s_portfolio(projetos, indicadores_portfolio)
+    if curva_portfolio.empty:
+        st.info(t("Não foi possível gerar a Curva S consolidada (sem dados de valor nos projetos).", idioma))
+    else:
+        ocultar_nomes_termino = st.checkbox(t("Ocultar nomes dos projetos no indicador de término", idioma))
+        fig_port = go.Figure()
+        fig_port.add_trace(
+            go.Scatter(
+                x=curva_portfolio.index, y=curva_portfolio["Linha de Base"],
+                name=t("Linha de Base", idioma), line=dict(dash="dash", color="#5B8DB8"),
+                hovertemplate="%{y:.1f}%",
+            )
         )
+        fig_port.add_trace(
+            go.Scatter(
+                x=curva_portfolio.index, y=curva_portfolio["Realizado / Previsto"],
+                name=t("Realizado / Previsto", idioma), line=dict(color="#2E8B57"),
+                hovertemplate="%{y:.1f}%",
+            )
+        )
+        for _i_proj, (_nome_proj, _p_proj) in enumerate(projetos.items()):
+            if _p_proj.termino is None:
+                continue
+            fig_port.add_vline(
+                x=pd.Timestamp(_p_proj.termino),
+                line_dash="dot",
+                line_color="#999999",
+                annotation_text="" if ocultar_nomes_termino else _p_proj.nome,
+                annotation_position="top" if _i_proj % 2 == 0 else "bottom",
+                annotation_textangle=-90,
+                annotation_font_size=9,
+            )
+        fig_port.update_layout(
+            xaxis_title=t("Data", idioma),
+            yaxis_title=t("% Concluído (acumulado)", idioma),
+            hovermode="x unified",
+            legend_title_text=t("Série", idioma),
+            height=480,
+        )
+        fig_port.update_yaxes(ticksuffix="%")
+        st.plotly_chart(fig_port, width="stretch")
+        st.caption(t("As linhas pontilhadas verticais marcam o término (atual) de cada projeto.", idioma))
 
-        st.divider()
-        st.subheader(t("Curva S Consolidada do Portfólio", idioma))
-        curva_portfolio = gerar_curva_s_portfolio(projetos, indicadores_portfolio)
-        if curva_portfolio.empty:
-            st.info(t("Não foi possível gerar a Curva S consolidada (sem dados de valor nos projetos).", idioma))
-        else:
-            ocultar_nomes_termino = st.checkbox(t("Ocultar nomes dos projetos no indicador de término", idioma))
-            fig_port = go.Figure()
-            fig_port.add_trace(
-                go.Scatter(
-                    x=curva_portfolio.index, y=curva_portfolio["Linha de Base"],
-                    name=t("Linha de Base", idioma), line=dict(dash="dash", color="#5B8DB8"),
-                    hovertemplate="%{y:.1f}%",
+        with st.expander(t("ℹ️ Como a Curva S do Portfólio foi calculada", idioma)):
+            st.write(
+                t(
+                    "Cada projeto é normalizado para % do seu próprio valor total (custo, "
+                    "ou duração quando não há custo) antes de ser combinado — isso permite somar "
+                    "cronogramas com unidades diferentes. A curva final é a média dessas curvas em "
+                    "%, ponderada pelo peso de cada projeto (duração total das tarefas), listado abaixo:",
+                    idioma,
                 )
             )
-            fig_port.add_trace(
-                go.Scatter(
-                    x=curva_portfolio.index, y=curva_portfolio["Realizado / Previsto"],
-                    name=t("Realizado / Previsto", idioma), line=dict(color="#2E8B57"),
-                    hovertemplate="%{y:.1f}%",
-                )
+            pesos = pesos_relativos(projetos)
+            df_pesos = pd.DataFrame(
+                [
+                    {
+                        t("Projeto", idioma): projetos[nome].nome,
+                        t("Peso no Portfólio", idioma): f"{peso:.1f}%",
+                    }
+                    for nome, peso in pesos.items()
+                ]
             )
-            for _i_proj, (_nome_proj, _p_proj) in enumerate(projetos.items()):
-                if _p_proj.termino is None:
-                    continue
-                fig_port.add_vline(
-                    x=pd.Timestamp(_p_proj.termino),
-                    line_dash="dot",
-                    line_color="#999999",
-                    annotation_text="" if ocultar_nomes_termino else _p_proj.nome,
-                    annotation_position="top" if _i_proj % 2 == 0 else "bottom",
-                    annotation_textangle=-90,
-                    annotation_font_size=9,
-                )
-            fig_port.update_layout(
-                xaxis_title=t("Data", idioma),
-                yaxis_title=t("% Concluído (acumulado)", idioma),
-                hovermode="x unified",
-                legend_title_text=t("Série", idioma),
-                height=480,
-            )
-            fig_port.update_yaxes(ticksuffix="%")
-            st.plotly_chart(fig_port, width="stretch")
-            st.caption(t("As linhas pontilhadas verticais marcam o término (atual) de cada projeto.", idioma))
+            st.dataframe(df_pesos, hide_index=True, width="stretch")
 
-            with st.expander(t("ℹ️ Como a Curva S do Portfólio foi calculada", idioma)):
-                st.write(
-                    t(
-                        "Cada projeto é normalizado para % do seu próprio valor total (custo, "
-                        "ou duração quando não há custo) antes de ser combinado — isso permite somar "
-                        "cronogramas com unidades diferentes. A curva final é a média dessas curvas em "
-                        "%, ponderada pelo peso de cada projeto (duração total das tarefas), listado abaixo:",
-                        idioma,
-                    )
-                )
-                pesos = pesos_relativos(projetos)
-                df_pesos = pd.DataFrame(
-                    [
-                        {
-                            t("Projeto", idioma): projetos[nome].nome,
-                            t("Peso no Portfólio", idioma): f"{peso:.1f}%",
-                        }
-                        for nome, peso in pesos.items()
-                    ]
-                )
-                st.dataframe(df_pesos, hide_index=True, width="stretch")
-
-        st.divider()
-        st.subheader(t("Exportar Relatório do Portfólio", idioma))
-        # O relatório exportado permanece sempre em português, independente do idioma da interface.
-        tabela_port_exportacao = tabela_comparativa(projetos, indicadores_portfolio, idioma="pt")
-        col_xp, col_pp = st.columns(2)
-        with col_xp:
-            excel_portfolio_bytes = gerar_excel_portfolio(tabela_port_exportacao, consolidado, curva_portfolio)
-            st.download_button(
-                t("⬇️ Baixar Excel", idioma),
-                data=excel_portfolio_bytes,
-                file_name=f"portfolio_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                width="stretch",
-            )
-        with col_pp:
-            pdf_portfolio_bytes = gerar_pdf_portfolio(tabela_port_exportacao, consolidado, curva_portfolio)
-            st.download_button(
-                t("⬇️ Baixar PDF", idioma),
-                data=pdf_portfolio_bytes,
-                file_name=f"portfolio_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
-                mime="application/pdf",
-                width="stretch",
-            )
+    st.divider()
+    st.subheader(t("Exportar Relatório do Portfólio", idioma))
+    # O relatório exportado permanece sempre em português, independente do idioma da interface.
+    tabela_port_exportacao = tabela_comparativa(projetos, indicadores_portfolio, idioma="pt")
+    col_xp, col_pp = st.columns(2)
+    with col_xp:
+        excel_portfolio_bytes = gerar_excel_portfolio(tabela_port_exportacao, consolidado, curva_portfolio)
+        st.download_button(
+            t("⬇️ Baixar Excel", idioma),
+            data=excel_portfolio_bytes,
+            file_name=f"portfolio_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            width="stretch",
+        )
+    with col_pp:
+        pdf_portfolio_bytes = gerar_pdf_portfolio(tabela_port_exportacao, consolidado, curva_portfolio)
+        st.download_button(
+            t("⬇️ Baixar PDF", idioma),
+            data=pdf_portfolio_bytes,
+            file_name=f"portfolio_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
+            mime="application/pdf",
+            width="stretch",
+        )
 
 with aba_resumo:
     c1, c2 = st.columns(2)
