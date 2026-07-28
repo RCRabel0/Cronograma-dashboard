@@ -226,7 +226,14 @@ if portfolio_ativo:
         st.divider()
         st.subheader(t("Comparativo entre Projetos", idioma))
         tabela_port = tabela_comparativa(projetos, indicadores_portfolio, idioma=idioma)
-        st.dataframe(tabela_port, hide_index=True, width="stretch")
+        st.dataframe(
+            tabela_port,
+            hide_index=True,
+            width="stretch",
+            column_config={
+                tabela_port.columns[0]: st.column_config.TextColumn(width="large"),
+            },
+        )
 
         st.divider()
         st.subheader(t("Curva S Consolidada do Portfólio", idioma))
