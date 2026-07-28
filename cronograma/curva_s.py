@@ -25,6 +25,7 @@ def gerar_curva_s(
     projeto: Projeto,
     data_status: date | None = None,
     percentual_concluido_alvo: float | None = None,
+    metodo_peso: str | None = None,
 ) -> pd.DataFrame:
     """Retorna um DataFrame diário com as colunas 'Linha de Base', 'Cronograma Atual' e 'Realizado' (acumulados).
 
@@ -41,7 +42,9 @@ def gerar_curva_s(
     if data_status is None:
         data_status = projeto.data_status or date.today()
 
-    usa_custo = projeto.tem_custo
+    tem_custo = projeto.tem_custo
+    if metodo_peso is None:
+        metodo_peso = "custo" if tem_custo else "duracao"
 
     datas_relevantes = []
     for t in tarefas:
@@ -67,7 +70,7 @@ def gerar_curva_s(
     realizado_diario = pd.Series(0.0, index=indice)
 
     for t in tarefas:
-        peso = peso_tarefa(t, usa_custo)
+        peso = peso_tarefa(t, metodo_peso, tem_custo)
         _distribuir(linha_base_diario, t.inicio_linha_base, t.termino_linha_base, peso)
         _distribuir(atual_diario, t.inicio, t.termino, peso)
 

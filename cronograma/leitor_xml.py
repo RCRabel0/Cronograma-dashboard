@@ -78,6 +78,60 @@ def _campo_linha_base(elemento, baseline0, ns, campo: str) -> str | None:
     return None
 
 
+def _campos_peso_candidatos(raiz, ns) -> list[tuple[str, str]]:
+    """Procura, entre os campos personalizados do projeto (<ExtendedAttributes>), todos
+    cujo apelido (Alias) contenha 'peso' ou 'weight'. Retorna a lista de (field_id, alias)
+    na ordem em que aparecem no arquivo (pode ser vazia se não houver nenhum)."""
+    el_atributos = raiz.find(f"{ns}ExtendedAttributes")
+    if el_atributos is None:
+        return []
+    candidatos = []
+    for el in el_atributos.findall(f"{ns}ExtendedAttribute"):
+        alias = _texto(el, "Alias", ns)
+        field_id = _texto(el, "FieldID", ns)
+        if alias and field_id and ("peso" in alias.lower() or "weight" in alias.lower()):
+            candidatos.append((field_id, alias))
+    return candidatos
+
+
+def _melhor_campo_peso(
+    candidatos: list[tuple[str, str]], tem_valor_por_campo: dict[str, bool]
+) -> tuple[str, str] | None:
+    """Entre os campos candidatos, escolhe o mais provável de ser o peso 'puro' da
+    tarefa (e não, por exemplo, um campo calculado que soma peso x avanço): primeiro um
+    apelido igual a 'peso'/'weight', depois um que comece com esses termos, e por fim a
+    ordem em que aparecem no arquivo. Ignora campos sem nenhum valor preenchido em
+    nenhuma tarefa (campos calculados por fórmula podem não ter valor exportado)."""
+
+    def prioridade(candidato: tuple[str, str]) -> int:
+        alias_normalizado = candidato[1].strip().lower()
+        if alias_normalizado in ("peso", "weight"):
+            return 0
+        if alias_normalizado.startswith("peso") or alias_normalizado.startswith("weight"):
+            return 1
+        return 2
+
+    for field_id, alias in sorted(candidatos, key=prioridade):
+        if tem_valor_por_campo.get(field_id):
+            return field_id, alias
+    return None
+
+
+def _valor_peso_personalizado(elemento_tarefa, ns, field_id: str) -> float | None:
+    """Lê, na tarefa, o valor do campo personalizado de peso identificado por field_id."""
+    for el in elemento_tarefa.findall(f"{ns}ExtendedAttribute"):
+        if _texto(el, "FieldID", ns) == field_id:
+            valor_texto = _texto(el, "Value", ns)
+            if not valor_texto:
+                return None
+            valor_texto = valor_texto.strip().replace("%", "").replace(",", ".")
+            try:
+                return float(valor_texto)
+            except ValueError:
+                return None
+    return None
+
+
 def _contar_baselines_salvas(elemento_tarefa, ns) -> int:
     """Conta quantos números de linha de base (0 a 10) têm de fato uma data de
     início ou término salva na tarefa (normalmente a tarefa-resumo do projeto)."""
@@ -118,6 +172,7 @@ def ler_xml(caminho: str) -> Projeto:
     # salva (isso normalmente só existe no .mpp nativo); tenta mesmo assim, caso
     # alguma versão do MS Project inclua esse campo.
     data_salva_linha_base = _data(_texto(raiz, "BaselineDate", ns))
+    campos_peso_candidatos = _campos_peso_candidatos(raiz, ns)
 
     recursos_por_uid: dict[str, Recurso] = {}
     el_recursos = raiz.find(f"{ns}Resources")
@@ -140,6 +195,7 @@ def ler_xml(caminho: str) -> Projeto:
 
     numero_baselines_salvas = 0
     numero_baselines_primeira_tarefa = None
+    valores_peso_candidatos: list[dict[str, float | None]] = []
     for el in el_tarefas.findall(f"{ns}Task"):
         uid = _texto(el, "UID", ns) or ""
         nome = _texto(el, "Name", ns) or "(sem nome)"
@@ -186,11 +242,26 @@ def ler_xml(caminho: str) -> Projeto:
                 tarefa.dependencias.append(Dependencia(predecessora_uid=pred_uid, tipo=tipo))
         tarefas.append(tarefa)
         tarefas_por_uid[uid] = tarefa
+        valores_peso_candidatos.append(
+            {
+                field_id: _valor_peso_personalizado(el, ns, field_id)
+                for field_id, _ in campos_peso_candidatos
+            }
+        )
 
     if numero_baselines_salvas == 0 and numero_baselines_primeira_tarefa:
         # Nem toda exportação inclui uma tarefa-resumo de nível 0; nesse caso, usa a
         # primeira tarefa do arquivo como referência para contar as linhas de base.
         numero_baselines_salvas = numero_baselines_primeira_tarefa
+
+    tem_valor_por_campo = {
+        field_id: any(v.get(field_id) is not None for v in valores_peso_candidatos)
+        for field_id, _ in campos_peso_candidatos
+    }
+    campo_peso_escolhido = _melhor_campo_peso(campos_peso_candidatos, tem_valor_por_campo)
+    if campo_peso_escolhido is not None:
+        for tarefa, valores_candidatos in zip(tarefas, valores_peso_candidatos):
+            tarefa.peso_editado = valores_candidatos.get(campo_peso_escolhido[0])
 
     el_atribuicoes = raiz.find(f"{ns}Assignments")
     if el_atribuicoes is not None:
@@ -212,6 +283,7 @@ def ler_xml(caminho: str) -> Projeto:
         data_status=data_status,
         numero_baselines_salvas=numero_baselines_salvas,
         data_salva_linha_base=data_salva_linha_base,
+        nome_coluna_peso_editado=campo_peso_escolhido[1] if campo_peso_escolhido else None,
         tarefas=tarefas,
         recursos=list(recursos_por_uid.values()),
     )

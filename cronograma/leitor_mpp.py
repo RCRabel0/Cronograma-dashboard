@@ -88,6 +88,65 @@ def _wbs(t) -> str:
         return ""
 
 
+def _aliases_peso_candidatos(projeto_mpxj) -> list[str]:
+    """Procura, entre os campos personalizados do projeto, todos os apelidos (Alias)
+    que contenham 'peso' ou 'weight'. Retorna a lista de apelidos únicos, na ordem em
+    que aparecem (pode ser vazia se não houver nenhum)."""
+    candidatos: list[str] = []
+    try:
+        for item in projeto_mpxj.getCustomFields():
+            alias = item.getAlias()
+            if alias is None:
+                continue
+            alias = str(alias)
+            if alias in candidatos:
+                continue
+            if "peso" in alias.lower() or "weight" in alias.lower():
+                candidatos.append(alias)
+    except Exception:
+        return []
+    return candidatos
+
+
+def _valor_peso_personalizado(t, alias: str) -> float | None:
+    """Lê, na tarefa, o valor do campo personalizado identificado pelo apelido (Alias)."""
+    try:
+        valor = t.getFieldByAlias(alias)
+    except Exception:
+        return None
+    if valor is None:
+        return None
+    try:
+        return float(valor)
+    except (TypeError, ValueError):
+        pass
+    texto = str(valor).strip().replace("%", "").replace(",", ".")
+    try:
+        return float(texto)
+    except ValueError:
+        return None
+
+
+def _melhor_alias_peso(candidatos: list[str], tem_valor_por_alias: dict[str, bool]) -> str | None:
+    """Entre os apelidos candidatos, escolhe o mais provável de ser o peso 'puro' da
+    tarefa (e não, por exemplo, um campo calculado que soma peso x avanço): primeiro um
+    apelido igual a 'peso'/'weight', depois um que comece com esses termos, e por fim a
+    ordem em que aparecem. Ignora apelidos sem nenhum valor preenchido em nenhuma tarefa."""
+
+    def prioridade(alias: str) -> int:
+        alias_normalizado = alias.strip().lower()
+        if alias_normalizado in ("peso", "weight"):
+            return 0
+        if alias_normalizado.startswith("peso") or alias_normalizado.startswith("weight"):
+            return 1
+        return 2
+
+    for alias in sorted(candidatos, key=prioridade):
+        if tem_valor_por_alias.get(alias):
+            return alias
+    return None
+
+
 def _contar_baselines_salvas(t) -> int:
     """Conta quantos números de linha de base (0 a 10) têm data de início ou
     término salva na tarefa (normalmente a tarefa-resumo do projeto)."""
@@ -137,6 +196,8 @@ def ler_mpp(caminho: str) -> Projeto:
     except Exception:
         data_salva_linha_base = None
 
+    aliases_peso_candidatos = _aliases_peso_candidatos(projeto_mpxj)
+
     tarefas: list[Tarefa] = []
     recursos_por_uid: dict[str, Recurso] = {}
 
@@ -150,6 +211,7 @@ def ler_mpp(caminho: str) -> Projeto:
         )
 
     numero_baselines_salvas = 0
+    valores_peso_candidatos: list[dict[str, float | None]] = []
     for t in projeto_mpxj.getTasks():
         if t.getUniqueID() == 0 and t.getName() is None:
             continue
@@ -191,6 +253,9 @@ def ler_mpp(caminho: str) -> Projeto:
                 Dependencia(predecessora_uid=str(tarefa_pred.getUniqueID()), tipo=tipo)
             )
         tarefas.append(tarefa)
+        valores_peso_candidatos.append(
+            {alias: _valor_peso_personalizado(t, alias) for alias in aliases_peso_candidatos}
+        )
 
     for a in projeto_mpxj.getResourceAssignments():
         tarefa_mpxj = a.getTask()
@@ -209,6 +274,15 @@ def ler_mpp(caminho: str) -> Projeto:
     if not tarefas:
         raise MpxjIndisponivelError("O arquivo não contém tarefas.")
 
+    tem_valor_por_alias = {
+        alias: any(v.get(alias) is not None for v in valores_peso_candidatos)
+        for alias in aliases_peso_candidatos
+    }
+    alias_peso_escolhido = _melhor_alias_peso(aliases_peso_candidatos, tem_valor_por_alias)
+    if alias_peso_escolhido is not None:
+        for tarefa, valores_candidatos in zip(tarefas, valores_peso_candidatos):
+            tarefa.peso_editado = valores_candidatos.get(alias_peso_escolhido)
+
     return Projeto(
         nome=str(propriedades.getName() or propriedades.getProjectTitle() or "Projeto sem nome"),
         inicio=_para_data(propriedades.getStartDate()),
@@ -216,6 +290,7 @@ def ler_mpp(caminho: str) -> Projeto:
         data_status=_para_data(propriedades.getStatusDate()),
         numero_baselines_salvas=numero_baselines_salvas,
         data_salva_linha_base=data_salva_linha_base,
+        nome_coluna_peso_editado=alias_peso_escolhido,
         tarefas=tarefas,
         recursos=list(recursos_por_uid.values()),
     )

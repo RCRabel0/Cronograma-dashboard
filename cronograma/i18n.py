@@ -64,6 +64,22 @@ TRADUCOES: dict[str, str] = {
     "Projeto para detalhamento": "Project for detail view",
     "**Detalhando o projeto:** {v}": "**Showing details for:** {v}",
     "Data de status (para cálculo dos indicadores)": "Status date (used to calculate indicators)",
+    "Custo": "Cost",
+    "Duração": "Duration",
+    "Peso da coluna '{coluna}'": "Weight from the '{coluna}' column",
+    "Como calcular a Curva S e os indicadores": "How to calculate the S-Curve and indicators",
+    "Este cronograma tem mais de uma forma de calcular o peso de cada tarefa. "
+    "Escolha qual usar para gerar a Curva S e os indicadores (SPI/CPI).":
+        "This schedule has more than one way to calculate each task's weight. "
+        "Choose which one to use to generate the S-Curve and the indicators (SPI/CPI).",
+    "Peso da(s) coluna(s) personalizada(s) ({colunas})": "Weight from the custom column(s) ({colunas})",
+    "Como calcular os indicadores e a Curva S do portfólio": "How to calculate the portfolio indicators and S-Curve",
+    "Os projetos deste portfólio têm mais de uma forma de calcular o peso de cada "
+    "tarefa. Escolha qual usar; projetos que não têm essa informação disponível "
+    "continuam usando a alternativa segura automaticamente.":
+        "The projects in this portfolio have more than one way to calculate each task's "
+        "weight. Choose which one to use; projects that don't have that information "
+        "available automatically keep using the safe fallback.",
     "**Início:** {v}": "**Start:** {v}",
     "**Término:** {v}": "**Finish:** {v}",
     "**Data de status:** {v}": "**Status date:** {v}",

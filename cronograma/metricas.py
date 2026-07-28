@@ -42,14 +42,18 @@ def formatar_valor(valor: float, unidade: str) -> str:
     return texto.replace(",", "X").replace(".", ",").replace("X", ".")
 
 
-def peso_tarefa(tarefa: Tarefa, usa_custo: bool) -> float:
+def peso_tarefa(tarefa: Tarefa, metodo_peso: str, tem_custo: bool) -> float:
     """Peso usado como 'valor' da tarefa nos cálculos de EVM.
 
-    Quando o arquivo tem custos preenchidos (recursos com tarifa), usa o custo
-    da linha de base. Caso contrário (cronograma só com tarefas e datas), usa a
-    duração planejada em horas como proxy de valor.
+    'metodo_peso' é 'custo', 'duracao' ou 'peso_editado'. Quando é 'peso_editado' e a
+    tarefa tem valor preenchido na coluna personalizada de peso (detectada no MS
+    Project), usa esse valor. Caso contrário — ou quando o método pedido é 'custo' mas
+    este projeto não tem custos preenchidos — cai para o custo da linha de base (se
+    'tem_custo' for True) ou, por fim, para a duração planejada em horas.
     """
-    if usa_custo:
+    if metodo_peso == "peso_editado" and tarefa.peso_editado is not None:
+        return tarefa.peso_editado
+    if tem_custo and metodo_peso in ("custo", "peso_editado"):
         return tarefa.custo_linha_base or tarefa.custo
     return tarefa.duracao_linha_base_horas or tarefa.duracao_horas
 
@@ -70,9 +74,12 @@ def _fracao_decorrida(data_status: date, inicio: date | None, termino: date | No
     return (data_status - inicio).days / (termino - inicio).days
 
 
-def calcular_valores_tarefa(tarefa: Tarefa, data_status: date, usa_custo: bool) -> ValoresTarefa:
+def calcular_valores_tarefa(
+    tarefa: Tarefa, data_status: date, metodo_peso: str, tem_custo: bool
+) -> ValoresTarefa:
     fracao_planejada = _fracao_decorrida(data_status, tarefa.inicio_linha_base, tarefa.termino_linha_base)
-    peso = peso_tarefa(tarefa, usa_custo)
+    peso = peso_tarefa(tarefa, metodo_peso, tem_custo)
+    usa_custo = tem_custo and metodo_peso in ("custo", "peso_editado")
 
     pv = peso * fracao_planejada
     ev = peso * (tarefa.percentual_concluido / 100)
@@ -83,20 +90,25 @@ def calcular_valores_tarefa(tarefa: Tarefa, data_status: date, usa_custo: bool) 
     return ValoresTarefa(tarefa=tarefa, pv=pv, ev=ev, ac=ac)
 
 
-def calcular_indicadores(projeto: Projeto, data_status: date | None = None) -> Indicadores:
+def calcular_indicadores(
+    projeto: Projeto, data_status: date | None = None, metodo_peso: str | None = None
+) -> Indicadores:
     tarefas = projeto.tarefas_detalhe
     if data_status is None:
         data_status = projeto.data_status or date.today()
 
-    usa_custo = projeto.tem_custo
+    tem_custo = projeto.tem_custo
+    if metodo_peso is None:
+        metodo_peso = "custo" if tem_custo else "duracao"
+    usa_custo = tem_custo and metodo_peso in ("custo", "peso_editado")
     unidade = "R$" if usa_custo else "h"
 
-    valores = [calcular_valores_tarefa(t, data_status, usa_custo) for t in tarefas]
+    valores = [calcular_valores_tarefa(t, data_status, metodo_peso, tem_custo) for t in tarefas]
 
     pv_total = sum(v.pv for v in valores)
     ev_total = sum(v.ev for v in valores)
     ac_total = sum(v.ac for v in valores)
-    orcamento_total = sum(peso_tarefa(t, usa_custo) for t in tarefas)
+    orcamento_total = sum(peso_tarefa(t, metodo_peso, tem_custo) for t in tarefas)
 
     spi = (ev_total / pv_total) if pv_total > 0 else None
     cpi = (ev_total / ac_total) if ac_total > 0 else None

@@ -46,13 +46,18 @@ from cronograma.relatorios import (
 # (clicar num checkbox, trocar de aba etc.), o que deixava o app lento em cronogramas
 # grandes. @st.cache_data memoriza o resultado enquanto os argumentos não mudarem.
 @st.cache_data(show_spinner=False)
-def calcular_indicadores(projeto, data_status=None):
-    return _calcular_indicadores_impl(projeto, data_status)
+def calcular_indicadores(projeto, data_status=None, metodo_peso=None):
+    return _calcular_indicadores_impl(projeto, data_status, metodo_peso=metodo_peso)
 
 
 @st.cache_data(show_spinner=False)
-def gerar_curva_s(projeto, data_status=None, percentual_concluido_alvo=None):
-    return _gerar_curva_s_impl(projeto, data_status, percentual_concluido_alvo=percentual_concluido_alvo)
+def gerar_curva_s(projeto, data_status=None, percentual_concluido_alvo=None, metodo_peso=None):
+    return _gerar_curva_s_impl(
+        projeto,
+        data_status,
+        percentual_concluido_alvo=percentual_concluido_alvo,
+        metodo_peso=metodo_peso,
+    )
 
 
 @st.cache_data(show_spinner=False)
@@ -61,13 +66,13 @@ def avaliar_checklist(projeto, indicadores, idioma="pt"):
 
 
 @st.cache_data(show_spinner=False)
-def calcular_indicadores_portfolio(projetos):
-    return _calcular_indicadores_portfolio_impl(projetos)
+def calcular_indicadores_portfolio(projetos, metodo_peso=None):
+    return _calcular_indicadores_portfolio_impl(projetos, metodo_peso=metodo_peso)
 
 
 @st.cache_data(show_spinner=False)
-def gerar_curva_s_portfolio(projetos, indicadores_por_projeto):
-    return _gerar_curva_s_portfolio_impl(projetos, indicadores_por_projeto)
+def gerar_curva_s_portfolio(projetos, indicadores_por_projeto, metodo_peso=None):
+    return _gerar_curva_s_portfolio_impl(projetos, indicadores_por_projeto, metodo_peso=metodo_peso)
 
 
 # Os botões de download passam os bytes do relatório já prontos (data=...), então o
@@ -247,11 +252,37 @@ data_status = st.sidebar.date_input(t("Data de status (para cálculo dos indicad
 if isinstance(data_status, tuple):
     data_status = data_status[0]
 
-indicadores = calcular_indicadores(projeto, data_status)
+metodos_disponiveis = []
+if projeto.tem_custo:
+    metodos_disponiveis.append(("custo", t("Custo", idioma)))
+metodos_disponiveis.append(("duracao", t("Duração", idioma)))
+if projeto.tem_peso_editado:
+    metodos_disponiveis.append(
+        ("peso_editado", tf("Peso da coluna '{coluna}'", idioma, coluna=projeto.nome_coluna_peso_editado))
+    )
+
+metodo_peso = metodos_disponiveis[0][0]
+if len(metodos_disponiveis) > 1:
+    rotulos_metodo = [rotulo for _chave, rotulo in metodos_disponiveis]
+    rotulo_escolhido = st.sidebar.selectbox(
+        t("Como calcular a Curva S e os indicadores", idioma),
+        rotulos_metodo,
+        key=f"metodo_peso_{nome_projeto_atual}",
+        help=t(
+            "Este cronograma tem mais de uma forma de calcular o peso de cada tarefa. "
+            "Escolha qual usar para gerar a Curva S e os indicadores (SPI/CPI).",
+            idioma,
+        ),
+    )
+    metodo_peso = {rotulo: chave for chave, rotulo in metodos_disponiveis}[rotulo_escolhido]
+
+indicadores = calcular_indicadores(projeto, data_status, metodo_peso)
 percepcoes = gerar_percepcoes(projeto, indicadores, idioma=idioma)
 # Os relatórios exportados (Excel/PDF) permanecem sempre em português, independente do idioma da interface.
 percepcoes_exportacao = [texto for _categoria, texto in gerar_percepcoes(projeto, indicadores, idioma="pt")]
-curva = gerar_curva_s(projeto, data_status, percentual_concluido_alvo=indicadores.percentual_concluido)
+curva = gerar_curva_s(
+    projeto, data_status, percentual_concluido_alvo=indicadores.percentual_concluido, metodo_peso=metodo_peso
+)
 
 # Período global compartilhado entre as abas: ajustar o período em qualquer aba atualiza
 # automaticamente os filtros de período das demais.
@@ -325,7 +356,40 @@ aba_portfolio, aba_resumo, aba_curva, aba_tarefas, aba_gantt, aba_checklist, aba
 with aba_portfolio:
     st.subheader(t("Portfólio de Projetos", idioma))
 
-    indicadores_portfolio = calcular_indicadores_portfolio(projetos)
+    metodos_disponiveis_portfolio = []
+    if any(p.tem_custo for p in projetos.values()):
+        metodos_disponiveis_portfolio.append(("custo", t("Custo", idioma)))
+    metodos_disponiveis_portfolio.append(("duracao", t("Duração", idioma)))
+    projetos_com_peso_editado = {nome: p for nome, p in projetos.items() if p.tem_peso_editado}
+    if projetos_com_peso_editado:
+        nomes_colunas_peso = sorted({p.nome_coluna_peso_editado for p in projetos_com_peso_editado.values()})
+        metodos_disponiveis_portfolio.append(
+            (
+                "peso_editado",
+                tf(
+                    "Peso da(s) coluna(s) personalizada(s) ({colunas})",
+                    idioma, colunas=", ".join(f"'{c}'" for c in nomes_colunas_peso),
+                ),
+            )
+        )
+
+    metodo_peso_portfolio = metodos_disponiveis_portfolio[0][0]
+    if len(metodos_disponiveis_portfolio) > 1:
+        rotulos_metodo_portfolio = [rotulo for _chave, rotulo in metodos_disponiveis_portfolio]
+        rotulo_escolhido_portfolio = st.selectbox(
+            t("Como calcular os indicadores e a Curva S do portfólio", idioma),
+            rotulos_metodo_portfolio,
+            key="metodo_peso_portfolio",
+            help=t(
+                "Os projetos deste portfólio têm mais de uma forma de calcular o peso de cada "
+                "tarefa. Escolha qual usar; projetos que não têm essa informação disponível "
+                "continuam usando a alternativa segura automaticamente.",
+                idioma,
+            ),
+        )
+        metodo_peso_portfolio = {rotulo: chave for chave, rotulo in metodos_disponiveis_portfolio}[rotulo_escolhido_portfolio]
+
+    indicadores_portfolio = calcular_indicadores_portfolio(projetos, metodo_peso_portfolio)
     consolidado = indicadores_consolidados(projetos, indicadores_portfolio)
 
     c1, c2, c3, c4 = st.columns(4)
@@ -354,7 +418,7 @@ with aba_portfolio:
 
     st.divider()
     st.subheader(t("Curva S Consolidada do Portfólio", idioma))
-    curva_portfolio = gerar_curva_s_portfolio(projetos, indicadores_portfolio)
+    curva_portfolio = gerar_curva_s_portfolio(projetos, indicadores_portfolio, metodo_peso_portfolio)
     if curva_portfolio.empty:
         st.info(t("Não foi possível gerar a Curva S consolidada (sem dados de valor nos projetos).", idioma))
     else:

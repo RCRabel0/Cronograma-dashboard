@@ -14,9 +14,20 @@ def data_status_projeto(projeto: Projeto) -> date:
     return projeto.data_status or date.today()
 
 
-def calcular_indicadores_portfolio(projetos: dict[str, Projeto]) -> dict[str, Indicadores]:
-    """Calcula os indicadores de cada projeto usando a própria data de status do arquivo."""
-    return {nome: calcular_indicadores(projeto, data_status_projeto(projeto)) for nome, projeto in projetos.items()}
+def calcular_indicadores_portfolio(
+    projetos: dict[str, Projeto], metodo_peso: str | None = None
+) -> dict[str, Indicadores]:
+    """Calcula os indicadores de cada projeto usando a própria data de status do arquivo.
+
+    'metodo_peso', quando informado, é aplicado a todos os projetos (cada um com sua
+    própria alternativa segura de fallback quando não tiver a informação pedida — ver
+    peso_tarefa() em metricas.py); se None, cada projeto decide sozinho (custo, se tiver,
+    senão duração), exatamente como antes de existir essa opção.
+    """
+    return {
+        nome: calcular_indicadores(projeto, data_status_projeto(projeto), metodo_peso=metodo_peso)
+        for nome, projeto in projetos.items()
+    }
 
 
 def _peso_projeto(projeto: Projeto) -> float:
@@ -101,7 +112,11 @@ def indicadores_consolidados(projetos: dict[str, Projeto], indicadores_por_proje
     }
 
 
-def gerar_curva_s_portfolio(projetos: dict[str, Projeto], indicadores_por_projeto: dict[str, Indicadores]) -> pd.DataFrame:
+def gerar_curva_s_portfolio(
+    projetos: dict[str, Projeto],
+    indicadores_por_projeto: dict[str, Indicadores],
+    metodo_peso: str | None = None,
+) -> pd.DataFrame:
     """Consolida a Curva S de todos os projetos numa única curva, em % do valor total
     de cada projeto (para poder somar cronogramas com unidades diferentes, ex.: alguns
     em custo e outros em horas), ponderada pelo tamanho (duração) de cada projeto."""
@@ -110,7 +125,12 @@ def gerar_curva_s_portfolio(projetos: dict[str, Projeto], indicadores_por_projet
 
     for nome, projeto in projetos.items():
         ind = indicadores_por_projeto[nome]
-        curva = gerar_curva_s(projeto, data_status_projeto(projeto), percentual_concluido_alvo=ind.percentual_concluido)
+        curva = gerar_curva_s(
+            projeto,
+            data_status_projeto(projeto),
+            percentual_concluido_alvo=ind.percentual_concluido,
+            metodo_peso=metodo_peso,
+        )
         total = curva["Linha de Base"].max()
         if total <= 0 or curva.empty:
             continue

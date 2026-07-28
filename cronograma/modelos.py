@@ -39,6 +39,7 @@ class Tarefa:
     tipo_restricao: int = 0  # MSPDI ConstraintType: 0=ASAP, 1=ALAP, 2=MSO, 3=MFO, 4=SNET, 5=SNLT, 6=FNET, 7=FNLT
     folga_horas: Optional[float] = None
     wbs: str = ""
+    peso_editado: Optional[float] = None
 
     recursos: list[str] = field(default_factory=list)
     dependencias: list["Dependencia"] = field(default_factory=list)
@@ -68,6 +69,7 @@ class Projeto:
     data_status: Optional[date] = None
     numero_baselines_salvas: int = 0
     data_salva_linha_base: Optional[date] = None
+    nome_coluna_peso_editado: Optional[str] = None
     tarefas: list[Tarefa] = field(default_factory=list)
     recursos: list[Recurso] = field(default_factory=list)
 
@@ -80,6 +82,12 @@ class Projeto:
     def tem_custo(self) -> bool:
         """Indica se o arquivo tem custos reais preenchidos (recursos com tarifa/custo)."""
         return any((t.custo_linha_base or t.custo) for t in self.tarefas_detalhe)
+
+    @property
+    def tem_peso_editado(self) -> bool:
+        """Indica se alguma tarefa tem valor preenchido na coluna personalizada de peso
+        detectada no MS Project (ex.: um campo chamado 'Peso' ou '% Peso por fase')."""
+        return any(t.peso_editado is not None for t in self.tarefas_detalhe)
 
     @property
     def tarefa_resumo_projeto(self) -> Optional[Tarefa]:
