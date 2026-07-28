@@ -486,15 +486,18 @@ with aba_curva:
 
 with aba_tarefas:
     st.subheader(t("Tarefas", idioma))
-    col_f1, col_f2 = st.columns(2)
+    col_f1, col_f2, col_f3 = st.columns(3)
     somente_atrasadas = col_f1.checkbox(t("Mostrar apenas tarefas atrasadas", idioma))
     somente_criticas = col_f2.checkbox(t("Mostrar apenas tarefas críticas", idioma))
+    somente_marcos = col_f3.checkbox(t("Mostrar apenas marcos", idioma))
 
     tabela = tabela_tarefas(projeto)
     if somente_atrasadas:
         tabela = tabela[tabela["Atrasada"] == "Sim"]
     if somente_criticas:
         tabela = tabela[tabela["Crítica"] == "Sim"]
+    if somente_marcos:
+        tabela = tabela[tabela["Marco"] == "Sim"]
 
     def _destacar_linha(linha):
         if linha["Atrasada"] == "Sim" and linha["Crítica"] == "Sim":

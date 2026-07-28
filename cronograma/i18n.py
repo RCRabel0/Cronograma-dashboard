@@ -167,6 +167,7 @@ TRADUCOES: dict[str, str] = {
     "Tarefas": "Tasks",
     "Mostrar apenas tarefas atrasadas": "Show only delayed tasks",
     "Mostrar apenas tarefas críticas": "Show only critical tasks",
+    "Mostrar apenas marcos": "Show only milestones",
     "🟪 Roxo = tarefa crítica · 🟥 Vermelho = atrasada · Vermelho mais forte = crítica e atrasada · "
     "🟨 Amarelo = marco.":
         "🟪 Purple = critical task · 🟥 Red = delayed · Stronger red = critical and delayed · "
