@@ -51,6 +51,16 @@ def test_upload_sem_custo_nao_mostra_seletor(app):
     assert not any("Curva S" in r for r in rotulos)
 
 
+def test_aba_status_reuniao(app):
+    _upload(app, "exemplo.xml", _ler(RAIZ / "exemplo_cronograma.xml"))
+    aba = app.tabs[1]
+    rotulos_metricas = {m.label for m in aba.metric}
+    assert {"% Concluído", "SPI", "CPI", "Atraso", "Críticas Atrasadas"} <= rotulos_metricas
+    textos_markdown = " ".join(m.value for m in aba.markdown)
+    assert "riscos" in textos_markdown.lower()
+    assert "marcos" in textos_markdown.lower()
+
+
 def test_seletor_peso_editado(app):
     _upload(app, "com_peso.xml", _ler(RAIZ / "tests/fixtures/cronograma_com_peso.xml"))
     seletor = next(sb for sb in app.sidebar.selectbox if "Curva S" in sb.label)

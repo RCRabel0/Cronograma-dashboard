@@ -6,6 +6,9 @@ Disponível em português e inglês.
 
 ## Funcionalidades
 
+### Status de Reunião (one-pager)
+- Uma única tela com os principais números (% concluído, SPI, CPI, atraso, críticas atrasadas), qualidade do cronograma, mini Curva S, principais riscos, próximos marcos e as tarefas mais atrasadas — pensada para compartilhar tela em reunião de status sem precisar baixar um PDF.
+
 ### Leitura de cronogramas
 - Upload de arquivos **.xml** (exportado do MS Project via *Arquivo > Salvar Como > XML*) — funciona em qualquer ambiente, inclusive na nuvem.
 - Upload de arquivos **.mpp** nativos — requer Java e a biblioteca `mpxj` instalados localmente (não funciona no Streamlit Community Cloud).

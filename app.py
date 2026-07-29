@@ -343,6 +343,7 @@ else:
 
 _nomes_abas = [
     t("📊 Portfólio", idioma),
+    t("🖥️ Status de Reunião", idioma),
     t("📈 Resumo", idioma),
     t("📉 Curva S", idioma),
     t("✅ Tarefas", idioma),
@@ -351,7 +352,10 @@ _nomes_abas = [
     t("👥 Recursos", idioma),
     t("📤 Exportar", idioma),
 ]
-aba_portfolio, aba_resumo, aba_curva, aba_tarefas, aba_gantt, aba_checklist, aba_recursos, aba_exportar = st.tabs(_nomes_abas)
+(
+    aba_portfolio, aba_status, aba_resumo, aba_curva, aba_tarefas, aba_gantt,
+    aba_checklist, aba_recursos, aba_exportar,
+) = st.tabs(_nomes_abas)
 
 with aba_portfolio:
     st.subheader(t("Portfólio de Projetos", idioma))
@@ -506,6 +510,106 @@ with aba_portfolio:
             mime="application/pdf",
             width="stretch",
         )
+
+with aba_status:
+    st.subheader(f"📌 {projeto.nome}")
+    _periodo_lb_status = periodo_linha_base_ativa(projeto, idioma)
+    st.caption(
+        tf(
+            "Data de status: {data} · Linha de base ativa: {lb}",
+            idioma, data=formatar_data(data_status, idioma), lb=_periodo_lb_status,
+        )
+    )
+
+    m1, m2, m3, m4, m5 = st.columns(5)
+    m1.metric(t("% Concluído", idioma), f"{indicadores.percentual_concluido:.1f}%")
+    m2.metric(
+        "SPI", f"{indicadores.spi:.2f}" if indicadores.spi is not None else t("N/D", idioma),
+        delta=f"{indicadores.spi - 1:.2f}" if indicadores.spi is not None else None,
+    )
+    m3.metric(
+        "CPI", f"{indicadores.cpi:.2f}" if indicadores.cpi is not None else t("N/D", idioma),
+        delta=f"{indicadores.cpi - 1:.2f}" if indicadores.cpi is not None else None,
+    )
+    m4.metric(
+        t("Atraso", idioma), tf("{n} dia(s)", idioma, n=indicadores.atraso_dias),
+        delta=(-indicadores.atraso_dias if indicadores.atraso_dias else None),
+    )
+    m5.metric(t("Críticas Atrasadas", idioma), indicadores.tarefas_criticas_atrasadas)
+
+    resultado_checklist_status = calcular_pontuacao(avaliar_checklist(projeto, indicadores, idioma=idioma))
+    st.caption(
+        tf(
+            "🏅 Qualidade do cronograma: {classificacao} ({pct:.0f}%)",
+            idioma,
+            classificacao=t(resultado_checklist_status["classificacao"], idioma),
+            pct=resultado_checklist_status["percentual"],
+        )
+    )
+
+    total_curva_status = curva["Linha de Base"].max()
+    fig_status = go.Figure()
+    if total_curva_status > 0:
+        fig_status.add_trace(
+            go.Scatter(
+                x=curva.index, y=curva["Linha de Base"] / total_curva_status * 100,
+                name=t("Linha de Base", idioma), line=dict(dash="dash", color="#5B8DB8"),
+            )
+        )
+        fig_status.add_trace(
+            go.Scatter(
+                x=curva.index, y=curva["Realizado / Previsto"] / total_curva_status * 100,
+                name=t("Realizado / Previsto", idioma), line=dict(color="#2E8B57"),
+            )
+        )
+    fig_status.add_vline(x=pd.Timestamp(data_status), line_dash="dot", line_color="gray")
+    fig_status.update_layout(
+        height=260, margin=dict(l=10, r=10, t=10, b=10),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+        yaxis_ticksuffix="%",
+    )
+    st.plotly_chart(fig_status, width="stretch")
+
+    col_riscos, col_marcos = st.columns(2)
+    with col_riscos:
+        st.markdown(f"**{t('⚠️ Principais riscos', idioma)}**")
+        riscos = [texto for categoria, texto in percepcoes if categoria == "alerta"][:4]
+        if riscos:
+            for texto in riscos:
+                st.warning(texto, icon="⚠️")
+        else:
+            st.success(t("Nenhum risco identificado no momento.", idioma))
+    with col_marcos:
+        st.markdown(f"**{t('🚩 Próximos marcos', idioma)}**")
+        marcos_pendentes = sorted(
+            [t_ for t_ in projeto.tarefas_detalhe if t_.marco and t_.percentual_concluido < 100 and t_.termino],
+            key=lambda t_: t_.termino,
+        )[:5]
+        if marcos_pendentes:
+            for marco in marcos_pendentes:
+                st.markdown(f"- {marco.nome} — {formatar_data(marco.termino, idioma)}")
+        else:
+            st.caption(t("Nenhum marco pendente.", idioma))
+
+    st.markdown(f"**{tf('🔻 Tarefas mais atrasadas ({n})', idioma, n=indicadores.tarefas_atrasadas)}**")
+    piores_atrasadas = sorted(
+        [t_ for t_ in projeto.tarefas_detalhe if t_.atrasada], key=dias_atraso_tarefa, reverse=True
+    )[:5]
+    if piores_atrasadas:
+        df_piores = pd.DataFrame(
+            [
+                {
+                    t("Tarefa", idioma): t_.nome,
+                    t("Crítica", idioma): t("Sim", idioma) if t_.critica else t("Não", idioma),
+                    t("Atraso (dias)", idioma): dias_atraso_tarefa(t_),
+                    t("% Concluído", idioma): t_.percentual_concluido,
+                }
+                for t_ in piores_atrasadas
+            ]
+        )
+        st.dataframe(df_piores, hide_index=True, width="stretch")
+    else:
+        st.success(t("Nenhuma tarefa está atrasada em relação à linha de base.", idioma))
 
 with aba_resumo:
     c1, c2 = st.columns(2)

@@ -80,6 +80,15 @@ TRADUCOES: dict[str, str] = {
         "The projects in this portfolio have more than one way to calculate each task's "
         "weight. Choose which one to use; projects that don't have that information "
         "available automatically keep using the safe fallback.",
+    "🖥️ Status de Reunião": "🖥️ Meeting Status",
+    "Data de status: {data} · Linha de base ativa: {lb}": "Status date: {data} · Active baseline: {lb}",
+    "Críticas Atrasadas": "Critical Delayed",
+    "🏅 Qualidade do cronograma: {classificacao} ({pct:.0f}%)": "🏅 Schedule quality: {classificacao} ({pct:.0f}%)",
+    "⚠️ Principais riscos": "⚠️ Main risks",
+    "Nenhum risco identificado no momento.": "No risks identified at the moment.",
+    "🚩 Próximos marcos": "🚩 Upcoming milestones",
+    "Nenhum marco pendente.": "No pending milestones.",
+    "🔻 Tarefas mais atrasadas ({n})": "🔻 Most delayed tasks ({n})",
     "**Início:** {v}": "**Start:** {v}",
     "**Término:** {v}": "**Finish:** {v}",
     "**Data de status:** {v}": "**Status date:** {v}",
