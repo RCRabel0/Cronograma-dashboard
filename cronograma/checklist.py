@@ -207,6 +207,18 @@ def avaliar_checklist(projeto: Projeto, indicadores: Indicadores, idioma: str = 
     concluidas_sem_data_real = [t for t in tarefas if t.percentual_concluido >= 100 and t.termino_real is None]
     concluidas = [t for t in tarefas if t.percentual_concluido >= 100]
     auto(s, "Atividades concluídas possuem data real de término.", _classificar_taxa(len(concluidas_sem_data_real), len(concluidas)) if concluidas else "N/A", _evidencia("{n} de {total_concluidas} tarefas concluídas sem Término Real registrado.", idioma, concluidas_sem_data_real, n=len(concluidas_sem_data_real), total_concluidas=len(concluidas)))
+    com_progresso = [t for t in tarefas if t.percentual_concluido > 0]
+    com_progresso_sem_inicio_real = [t for t in com_progresso if t.inicio_real is None]
+    auto(
+        s, "Atividades com progresso possuem data real de início.",
+        _classificar_taxa(len(com_progresso_sem_inicio_real), len(com_progresso)) if com_progresso else "N/A",
+        _evidencia(
+            "{n} de {total_com_progresso} tarefas com % concluído maior que zero mas sem Início Real registrado "
+            "(risco de distorcer SPI/CPI).",
+            idioma, com_progresso_sem_inicio_real,
+            n=len(com_progresso_sem_inicio_real), total_com_progresso=len(com_progresso),
+        ),
+    )
     auto(s, "Atividades futuras não possuem progresso indevido.", _classificar_taxa(len(incoerentes), total) if projeto.data_status else "N/A", _evidencia("{n} de {total} tarefas com início futuro e progresso indevido.", idioma, incoerentes, n=len(incoerentes), total=total))
 
     # 10. Indicadores

@@ -493,6 +493,11 @@ TRADUCOES: dict[str, str] = {
     "{n} de {total} tarefas com início futuro (após a data de status) e progresso maior que zero.": "{n} of {total} tasks with a future start (after the status date) and progress greater than zero.",
     "Atividades concluídas possuem data real de término.": "Completed activities have an actual finish date.",
     "{n} de {total_concluidas} tarefas concluídas sem Término Real registrado.": "{n} of {total_concluidas} completed tasks without a recorded Actual Finish.",
+    "Atividades com progresso possuem data real de início.": "Activities with progress have an actual start date.",
+    "{n} de {total_com_progresso} tarefas com % concluído maior que zero mas sem Início Real registrado "
+    "(risco de distorcer SPI/CPI).":
+        "{n} of {total_com_progresso} tasks with % complete greater than zero but no recorded Actual Start "
+        "(risk of distorting SPI/CPI).",
     "Atividades futuras não possuem progresso indevido.": "Future activities have no undue progress.",
     "{n} de {total} tarefas com início futuro e progresso indevido.": "{n} of {total} tasks with a future start and undue progress.",
 
