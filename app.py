@@ -36,6 +36,7 @@ from cronograma.relatorios import (
     gerar_pdf as _gerar_pdf_impl,
     gerar_pdf_executivo as _gerar_pdf_executivo_impl,
     gerar_pdf_portfolio as _gerar_pdf_portfolio_impl,
+    gerar_pdf_status_reuniao as _gerar_pdf_status_reuniao_impl,
     tabela_recursos,
     tabela_tarefas,
 )
@@ -63,6 +64,17 @@ def gerar_curva_s(projeto, data_status=None, percentual_concluido_alvo=None, met
 @st.cache_data(show_spinner=False)
 def avaliar_checklist(projeto, indicadores, idioma="pt"):
     return _avaliar_checklist_impl(projeto, indicadores, idioma=idioma)
+
+
+@st.cache_data(show_spinner=False)
+def gerar_pdf_status_reuniao(
+    projeto, indicadores, curva_s, riscos, marcos_pendentes, tarefas_atrasadas_top,
+    resultado_checklist, periodo_linha_base_ativa_texto, data_status,
+):
+    return _gerar_pdf_status_reuniao_impl(
+        projeto, indicadores, curva_s, riscos, marcos_pendentes, tarefas_atrasadas_top,
+        resultado_checklist, periodo_linha_base_ativa_texto, data_status,
+    )
 
 
 @st.cache_data(show_spinner=False)
@@ -610,6 +622,23 @@ with aba_status:
         st.dataframe(df_piores, hide_index=True, width="stretch")
     else:
         st.success(t("Nenhuma tarefa está atrasada em relação à linha de base.", idioma))
+
+    st.divider()
+    # O relatório exportado permanece sempre em português, independente do idioma da interface.
+    riscos_exportacao = [
+        texto for categoria, texto in gerar_percepcoes(projeto, indicadores, idioma="pt") if categoria == "alerta"
+    ][:4]
+    pdf_status_bytes = gerar_pdf_status_reuniao(
+        projeto, indicadores, curva, riscos_exportacao, marcos_pendentes, piores_atrasadas,
+        resultado_checklist_status, periodo_linha_base_ativa(projeto, "pt"), data_status,
+    )
+    st.download_button(
+        t("⬇️ Baixar Status de Reunião (PDF)", idioma),
+        data=pdf_status_bytes,
+        file_name=f"status_reuniao_{projeto.nome.strip().replace(' ', '_')}.pdf",
+        mime="application/pdf",
+        width="stretch",
+    )
 
 with aba_resumo:
     c1, c2 = st.columns(2)

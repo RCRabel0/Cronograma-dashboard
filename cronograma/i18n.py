@@ -316,6 +316,7 @@ TRADUCOES: dict[str, str] = {
         "Generate a report with the project's summary, indicators, tasks and S-curve.",
     "⬇️ Baixar Excel": "⬇️ Download Excel",
     "⬇️ Baixar PDF": "⬇️ Download PDF",
+    "⬇️ Baixar Status de Reunião (PDF)": "⬇️ Download Meeting Status (PDF)",
     "Relatório Executivo por Período": "Executive Report by Period",
     "Gere um PDF pronto para apresentação com os indicadores, a Curva S, o Gráfico de Gantt "
     "e a lista de atividades filtrados por um período específico.":

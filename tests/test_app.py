@@ -59,6 +59,8 @@ def test_aba_status_reuniao(app):
     textos_markdown = " ".join(m.value for m in aba.markdown)
     assert "riscos" in textos_markdown.lower()
     assert "marcos" in textos_markdown.lower()
+    rotulos_botoes = [db.label for db in aba.download_button]
+    assert any("Status de Reunião" in r and "PDF" in r for r in rotulos_botoes)
 
 
 def test_seletor_peso_editado(app):

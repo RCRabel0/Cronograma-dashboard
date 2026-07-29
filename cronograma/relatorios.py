@@ -19,7 +19,7 @@ from reportlab.platypus import (
     TableStyle,
 )
 
-from .metricas import Indicadores, formatar_valor
+from .metricas import Indicadores, dias_atraso_tarefa, formatar_valor
 from .modelos import Projeto, Tarefa
 
 CORES_STATUS = {
@@ -515,6 +515,138 @@ def gerar_pdf(
     elementos.append(Paragraph("Curva S - Linha de Base x Realizado/Previsto", estilos["Heading2"]))
     png = _grafico_curva_s_png(curva_s, indicadores.unidade)
     elementos.append(Image(io.BytesIO(png), width=17 * cm, height=8.5 * cm))
+
+    doc.build(elementos)
+    return buffer.getvalue()
+
+
+def _cor_cartao(bom: bool | None):
+    if bom is None:
+        return colors.HexColor("#EAECEE")
+    return colors.HexColor("#D4EFDF") if bom else colors.HexColor("#F8D7DA")
+
+
+def gerar_pdf_status_reuniao(
+    projeto: Projeto,
+    indicadores: Indicadores,
+    curva_s: pd.DataFrame,
+    riscos: list[str],
+    marcos_pendentes: list[Tarefa],
+    tarefas_atrasadas_top: list[Tarefa],
+    resultado_checklist: dict,
+    periodo_linha_base_ativa_texto: str,
+    data_status,
+) -> bytes:
+    """Relatório de uma única página no mesmo formato da aba 'Status de Reunião' da
+    interface (números principais, mini Curva S, riscos, marcos e tarefas mais
+    atrasadas) — pensado para impressão ou compartilhamento rápido em reunião."""
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer, pagesize=landscape(A4),
+        topMargin=1 * cm, bottomMargin=1 * cm, leftMargin=1.2 * cm, rightMargin=1.2 * cm,
+    )
+    estilos = getSampleStyleSheet()
+    largura_util = landscape(A4)[0] - 2.4 * cm
+    elementos = []
+
+    elementos.append(Paragraph(f"Status de Reunião — {projeto.nome}", estilos["Title"]))
+    elementos.append(
+        Paragraph(
+            f"Data de status: {data_status:%d/%m/%Y} · Linha de base ativa: {periodo_linha_base_ativa_texto} · "
+            f"Qualidade do cronograma: {resultado_checklist['classificacao']} "
+            f"({resultado_checklist['percentual']:.0f}%)",
+            estilos["Normal"],
+        )
+    )
+    elementos.append(Spacer(1, 0.4 * cm))
+
+    valores_kpi = [
+        f"{indicadores.percentual_concluido:.1f}%",
+        f"{indicadores.spi:.2f}" if indicadores.spi is not None else "N/D",
+        f"{indicadores.cpi:.2f}" if indicadores.cpi is not None else "N/D",
+        f"{indicadores.atraso_dias} dia(s)",
+        str(indicadores.tarefas_criticas_atrasadas),
+    ]
+    rotulos_kpi = ["% Concluído", "SPI", "CPI", "Atraso", "Críticas Atrasadas"]
+    bons_kpi = [
+        None,
+        (indicadores.spi >= 0.95) if indicadores.spi is not None else None,
+        (indicadores.cpi >= 0.95) if indicadores.cpi is not None else None,
+        indicadores.atraso_dias <= 0,
+        indicadores.tarefas_criticas_atrasadas == 0,
+    ]
+    tabela_kpi = Table([valores_kpi, rotulos_kpi], colWidths=[largura_util / 5] * 5)
+    estilo_kpi = [
+        ("FONTSIZE", (0, 0), (-1, 0), 20),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 1), (-1, 1), 9),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("TOPPADDING", (0, 0), (-1, 0), 10),
+        ("BOTTOMPADDING", (0, 1), (-1, 1), 8),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.white),
+    ]
+    for col, bom in enumerate(bons_kpi):
+        estilo_kpi.append(("BACKGROUND", (col, 0), (col, 1), _cor_cartao(bom)))
+    tabela_kpi.setStyle(TableStyle(estilo_kpi))
+    elementos.append(tabela_kpi)
+    elementos.append(Spacer(1, 0.5 * cm))
+
+    png_curva = _grafico_curva_s_png(curva_s, indicadores.unidade)
+    imagem_curva = _imagem_proporcional(png_curva, largura_util / cm * 0.55, 9)
+
+    estilo_lista = ParagraphStyle("lista_status", parent=estilos["Normal"], fontSize=8.5, leading=11)
+    bloco_direita = [Paragraph("Principais riscos", estilos["Heading3"])]
+    if riscos:
+        for texto in riscos:
+            bloco_direita.append(Paragraph(f"• {texto}", estilo_lista))
+    else:
+        bloco_direita.append(Paragraph("Nenhum risco identificado no momento.", estilo_lista))
+    bloco_direita.append(Spacer(1, 0.3 * cm))
+    bloco_direita.append(Paragraph("Próximos marcos", estilos["Heading3"]))
+    if marcos_pendentes:
+        for marco in marcos_pendentes:
+            data_marco = f"{marco.termino:%d/%m/%Y}" if marco.termino else "N/D"
+            bloco_direita.append(Paragraph(f"• {marco.nome} — {data_marco}", estilo_lista))
+    else:
+        bloco_direita.append(Paragraph("Nenhum marco pendente.", estilo_lista))
+
+    tabela_duas_colunas = Table(
+        [[imagem_curva, bloco_direita]],
+        colWidths=[largura_util * 0.55, largura_util * 0.45],
+    )
+    tabela_duas_colunas.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP")]))
+    elementos.append(tabela_duas_colunas)
+    elementos.append(Spacer(1, 0.5 * cm))
+
+    elementos.append(
+        Paragraph(f"Tarefas mais atrasadas ({indicadores.tarefas_atrasadas})", estilos["Heading3"])
+    )
+    if tarefas_atrasadas_top:
+        dados_tabela = [["Tarefa", "Crítica", "Atraso (dias)", "% Concluído"]]
+        for t in tarefas_atrasadas_top:
+            dados_tabela.append(
+                [t.nome, "Sim" if t.critica else "Não", str(dias_atraso_tarefa(t)), f"{t.percentual_concluido:.0f}%"]
+            )
+        tabela_atrasadas = Table(
+            dados_tabela,
+            colWidths=[largura_util * 0.55, largura_util * 0.15, largura_util * 0.15, largura_util * 0.15],
+            repeatRows=1,
+        )
+        tabela_atrasadas.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2E4053")),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                    ("GRID", (0, 0), (-1, -1), 0.4, colors.grey),
+                    ("FONTSIZE", (0, 0), (-1, -1), 8),
+                    ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.white]),
+                ]
+            )
+        )
+        elementos.append(tabela_atrasadas)
+    else:
+        elementos.append(Paragraph("Nenhuma tarefa está atrasada em relação à linha de base.", estilos["Normal"]))
 
     doc.build(elementos)
     return buffer.getvalue()

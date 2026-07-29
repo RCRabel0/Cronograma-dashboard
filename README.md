@@ -7,7 +7,8 @@ Disponível em português e inglês.
 ## Funcionalidades
 
 ### Status de Reunião (one-pager)
-- Uma única tela com os principais números (% concluído, SPI, CPI, atraso, críticas atrasadas), qualidade do cronograma, mini Curva S, principais riscos, próximos marcos e as tarefas mais atrasadas — pensada para compartilhar tela em reunião de status sem precisar baixar um PDF.
+- Uma única tela com os principais números (% concluído, SPI, CPI, atraso, críticas atrasadas), qualidade do cronograma, mini Curva S, principais riscos, próximos marcos e as tarefas mais atrasadas — pensada para compartilhar tela em reunião de status.
+- Exportação em PDF de página única (paisagem), com o mesmo conteúdo da tela, para impressão ou envio por e-mail.
 
 ### Leitura de cronogramas
 - Upload de arquivos **.xml** (exportado do MS Project via *Arquivo > Salvar Como > XML*) — funciona em qualquer ambiente, inclusive na nuvem.

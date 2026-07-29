@@ -5,12 +5,14 @@ import openpyxl
 import pandas as pd
 import pytest
 
+from cronograma.checklist import avaliar_checklist, calcular_pontuacao
 from cronograma.curva_s import gerar_curva_s
-from cronograma.metricas import calcular_indicadores, gerar_percepcoes
+from cronograma.metricas import calcular_indicadores, dias_atraso_tarefa, gerar_percepcoes
 from cronograma.portfolio import (
     calcular_indicadores_portfolio,
     gerar_curva_s_portfolio,
     indicadores_consolidados,
+    periodo_linha_base_ativa,
     tabela_comparativa,
 )
 from cronograma.relatorios import (
@@ -19,6 +21,7 @@ from cronograma.relatorios import (
     gerar_excel_tabela,
     gerar_pdf,
     gerar_pdf_portfolio,
+    gerar_pdf_status_reuniao,
     tabela_tarefas,
 )
 
@@ -124,3 +127,32 @@ def test_excel_e_pdf_portfolio(projeto_com_custo, projeto_sem_custo):
 
     pdf = gerar_pdf_portfolio(tabela, consolidado, curva_port)
     assert pdf.startswith(b"%PDF")
+
+
+def test_pdf_status_reuniao_com_dados(projeto_com_custo, indicadores, curva):
+    percepcoes = gerar_percepcoes(projeto_com_custo, indicadores, idioma="pt")
+    riscos = [texto for categoria, texto in percepcoes if categoria == "alerta"][:4]
+    marcos_pendentes = sorted(
+        [t for t in projeto_com_custo.tarefas_detalhe if t.marco and t.percentual_concluido < 100 and t.termino],
+        key=lambda t: t.termino,
+    )[:5]
+    piores_atrasadas = sorted(
+        [t for t in projeto_com_custo.tarefas_detalhe if t.atrasada], key=dias_atraso_tarefa, reverse=True
+    )[:5]
+    resultado_checklist = calcular_pontuacao(avaliar_checklist(projeto_com_custo, indicadores, idioma="pt"))
+    lb_texto = periodo_linha_base_ativa(projeto_com_custo, "pt")
+
+    dados = gerar_pdf_status_reuniao(
+        projeto_com_custo, indicadores, curva, riscos, marcos_pendentes, piores_atrasadas,
+        resultado_checklist, lb_texto, DATA_STATUS,
+    )
+    assert dados.startswith(b"%PDF")
+
+
+def test_pdf_status_reuniao_sem_riscos_nem_marcos(projeto_com_custo, indicadores, curva):
+    resultado_checklist = calcular_pontuacao(avaliar_checklist(projeto_com_custo, indicadores, idioma="pt"))
+    dados = gerar_pdf_status_reuniao(
+        projeto_com_custo, indicadores, curva, [], [], [],
+        resultado_checklist, "N/D", DATA_STATUS,
+    )
+    assert dados.startswith(b"%PDF")
