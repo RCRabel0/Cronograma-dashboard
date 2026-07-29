@@ -1,7 +1,11 @@
 import io
+from datetime import date, datetime
 
 import pandas as pd
 from openpyxl.chart import LineChart, Reference
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.worksheet import Worksheet
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -39,11 +43,129 @@ def status_tarefa(t: Tarefa) -> str:
     return "No prazo"
 
 
+_COR_CABECALHO = "2E4053"
+_COR_FAIXA = "F2F3F4"
+_COR_BORDA = "BFBFBF"
+_COR_MARCO = "F9E79F"
+
+# Mesmas cores usadas para destacar linhas na aba Tarefas do app (crítica+atrasada,
+# atrasada, crítica), para que o Excel exportado bata visualmente com a tela.
+_CORES_STATUS_TAREFA = {
+    (True, True): "F1948A",
+    (True, False): "F8D7DA",
+    (False, True): "D7BDE2",
+}
+
+# Cores para a coluna "Status" do relatório do Gantt (valores em PT ou EN, conforme
+# o idioma da interface no momento da exportação).
+_CORES_STATUS_TEXTO = {
+    "Concluída": "D4EFDF", "Completed": "D4EFDF",
+    "No prazo": "D6EAF8", "On track": "D6EAF8",
+    "Crítica": "D7BDE2", "Critical": "D7BDE2",
+    "Atrasada": "F8D7DA", "Delayed": "F8D7DA",
+    "Crítica atrasada": "F1948A", "Critical delayed": "F1948A",
+}
+
+# Cores para a coluna "Status" do checklist de qualidade.
+_CORES_CONFORMIDADE = {
+    "Conforme": "D4EFDF",
+    "Parcial": "FCF3CF",
+    "Não Conforme": "F8D7DA",
+}
+
+
+def _cor_linha(linha: dict) -> str | None:
+    """Decide a cor de destaque de uma linha, reaproveitando a mesma lógica (e as
+    mesmas cores) já usadas na aba Tarefas do app, ou a coluna 'Status' quando presente
+    (relatório do Gantt ou checklist de qualidade)."""
+    if "Atrasada" in linha and "Crítica" in linha:
+        atrasada = linha.get("Atrasada") == "Sim"
+        critica = linha.get("Crítica") == "Sim"
+        cor = _CORES_STATUS_TAREFA.get((atrasada, critica))
+        if cor:
+            return cor
+        if linha.get("Marco") == "Sim":
+            return _COR_MARCO
+        return None
+    status = linha.get("Status")
+    if status in _CORES_STATUS_TEXTO:
+        return _CORES_STATUS_TEXTO[status]
+    if status in _CORES_CONFORMIDADE:
+        return _CORES_CONFORMIDADE[status]
+    return None
+
+
+def _formatar_planilha(ws: Worksheet, df: pd.DataFrame) -> None:
+    """Aplica uma formatação consistente a uma planilha recém-escrita via
+    DataFrame.to_excel: cabeçalho destacado, largura de coluna ajustada ao conteúdo,
+    congelamento do cabeçalho, bordas, faixas de cor alternadas e formatos numéricos
+    (datas, percentual, moeda) — além de destacar linhas de tarefas críticas/atrasadas
+    ou por status, replicando as cores já usadas na interface.
+    """
+    if df.empty:
+        return
+
+    fonte_cabecalho = Font(bold=True, color="FFFFFF")
+    preenchimento_cabecalho = PatternFill("solid", fgColor=_COR_CABECALHO)
+    lado = Side(style="thin", color=_COR_BORDA)
+    borda_fina = Border(left=lado, right=lado, top=lado, bottom=lado)
+    alinhamento_cabecalho = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    n_linhas = len(df)
+
+    for col_idx, nome_coluna in enumerate(df.columns, start=1):
+        celula_cabecalho = ws.cell(row=1, column=col_idx)
+        celula_cabecalho.font = fonte_cabecalho
+        celula_cabecalho.fill = preenchimento_cabecalho
+        celula_cabecalho.alignment = alinhamento_cabecalho
+        celula_cabecalho.border = borda_fina
+
+        valores = df[nome_coluna]
+        amostra = valores.dropna()
+        eh_data = not amostra.empty and isinstance(amostra.iloc[0], (date, datetime))
+        eh_percentual = "%" in str(nome_coluna)
+        eh_moeda = "custo" in str(nome_coluna).lower()
+
+        maior_texto = len(str(nome_coluna))
+        for valor in valores:
+            texto = "" if pd.isna(valor) else str(valor)
+            maior_texto = max(maior_texto, len(texto))
+        ws.column_dimensions[get_column_letter(col_idx)].width = min(max(maior_texto + 2, 10), 50)
+
+        if eh_data:
+            numero_formato = "DD/MM/YYYY"
+        elif eh_percentual:
+            numero_formato = '0.0"%"'
+        elif eh_moeda:
+            numero_formato = '"R$" #,##0.00'
+        elif pd.api.types.is_float_dtype(valores):
+            numero_formato = "#,##0.00"
+        else:
+            numero_formato = None
+
+        if numero_formato:
+            for linha_idx in range(2, n_linhas + 2):
+                ws.cell(row=linha_idx, column=col_idx).number_format = numero_formato
+
+    n_colunas = len(df.columns)
+    for pos, (_, linha) in enumerate(df.iterrows()):
+        linha_idx = pos + 2
+        cor_status = _cor_linha(linha.to_dict())
+        cor_fundo = cor_status or (_COR_FAIXA if pos % 2 == 1 else None)
+        for col_idx in range(1, n_colunas + 1):
+            celula = ws.cell(row=linha_idx, column=col_idx)
+            celula.border = borda_fina
+            if cor_fundo:
+                celula.fill = PatternFill("solid", fgColor=cor_fundo)
+
+    ws.freeze_panes = "A2"
+
+
 def gerar_excel_tabela(df: pd.DataFrame, nome_planilha: str = "Tarefas") -> bytes:
     """Gera um Excel simples de uma única planilha a partir de um DataFrame já pronto para exibição."""
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
         df.to_excel(writer, sheet_name=nome_planilha[:31], index=False)
+        _formatar_planilha(writer.sheets[nome_planilha[:31]], df)
     return buffer.getvalue()
 
 
@@ -128,11 +250,20 @@ def gerar_excel(projeto: Projeto, indicadores: Indicadores, curva_s: pd.DataFram
     outras_colunas = [c for c in curva_s.columns if c not in colunas_grafico]
     curva_s_ordenada = curva_s[colunas_grafico + outras_colunas]
 
+    df_tarefas = tabela_tarefas(projeto)
+    df_recursos = tabela_recursos(projeto)
+    df_curva = curva_s_ordenada.reset_index()
+
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
         resumo.to_excel(writer, sheet_name="Resumo", index=False)
-        tabela_tarefas(projeto).to_excel(writer, sheet_name="Tarefas", index=False)
-        tabela_recursos(projeto).to_excel(writer, sheet_name="Recursos", index=False)
-        curva_s_ordenada.reset_index().to_excel(writer, sheet_name="Curva S", index=False)
+        df_tarefas.to_excel(writer, sheet_name="Tarefas", index=False)
+        df_recursos.to_excel(writer, sheet_name="Recursos", index=False)
+        df_curva.to_excel(writer, sheet_name="Curva S", index=False)
+
+        _formatar_planilha(writer.sheets["Resumo"], resumo)
+        _formatar_planilha(writer.sheets["Tarefas"], df_tarefas)
+        _formatar_planilha(writer.sheets["Recursos"], df_recursos)
+        _formatar_planilha(writer.sheets["Curva S"], df_curva)
 
         planilha_curva = writer.sheets["Curva S"]
         grafico = LineChart()
@@ -180,8 +311,13 @@ def gerar_excel_portfolio(tabela_comparativa: pd.DataFrame, consolidado: dict, c
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
         resumo.to_excel(writer, sheet_name="Resumo Portfólio", index=False)
         tabela_comparativa.to_excel(writer, sheet_name="Comparativo", index=False)
+        _formatar_planilha(writer.sheets["Resumo Portfólio"], resumo)
+        _formatar_planilha(writer.sheets["Comparativo"], tabela_comparativa)
+
         if not curva_portfolio.empty:
-            curva_portfolio.reset_index(names="Data").to_excel(writer, sheet_name="Curva S Portfólio", index=False)
+            df_curva_portfolio = curva_portfolio.reset_index(names="Data")
+            df_curva_portfolio.to_excel(writer, sheet_name="Curva S Portfólio", index=False)
+            _formatar_planilha(writer.sheets["Curva S Portfólio"], df_curva_portfolio)
 
             planilha_curva = writer.sheets["Curva S Portfólio"]
             grafico = LineChart()
