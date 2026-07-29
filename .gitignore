@@ -1,6 +1,7 @@
 .venv/
 __pycache__/
 *.pyc
+.pytest_cache/
 .claude/
 
 # Segredos locais (nunca versionar - configurar direto no Streamlit Cloud)

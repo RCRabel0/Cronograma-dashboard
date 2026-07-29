@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Project xmlns="http://schemas.microsoft.com/project">
+  <Name>Projeto Teste Peso</Name>
+  <StartDate>2026-01-01T08:00:00</StartDate>
+  <FinishDate>2026-04-30T17:00:00</FinishDate>
+  <StatusDate>2026-02-15T00:00:00</StatusDate>
+  <ExtendedAttributes>
+    <ExtendedAttribute>
+      <FieldID>188743746</FieldID>
+      <FieldName>Numero1</FieldName>
+      <Alias>Peso</Alias>
+    </ExtendedAttribute>
+  </ExtendedAttributes>
+  <Tasks>
+    <Task>
+      <UID>1</UID>
+      <ID>1</ID>
+      <Name>Tarefa A</Name>
+      <OutlineLevel>1</OutlineLevel>
+      <Summary>0</Summary>
+      <Milestone>0</Milestone>
+      <Critical>0</Critical>
+      <PercentComplete>100</PercentComplete>
+      <Start>2026-01-01T08:00:00</Start>
+      <Finish>2026-01-31T17:00:00</Finish>
+      <BaselineStart>2026-01-01T08:00:00</BaselineStart>
+      <BaselineFinish>2026-01-31T17:00:00</BaselineFinish>
+      <ActualStart>2026-01-01T08:00:00</ActualStart>
+      <ActualFinish>2026-01-31T17:00:00</ActualFinish>
+      <Duration>PT160H0M0S</Duration>
+      <BaselineDuration>PT160H0M0S</BaselineDuration>
+      <ExtendedAttribute>
+        <FieldID>188743746</FieldID>
+        <Value>80</Value>
+      </ExtendedAttribute>
+    </Task>
+    <Task>
+      <UID>2</UID>
+      <ID>2</ID>
+      <Name>Tarefa B</Name>
+      <OutlineLevel>1</OutlineLevel>
+      <Summary>0</Summary>
+      <Milestone>0</Milestone>
+      <Critical>0</Critical>
+      <PercentComplete>0</PercentComplete>
+      <Start>2026-02-01T08:00:00</Start>
+      <Finish>2026-04-30T17:00:00</Finish>
+      <BaselineStart>2026-02-01T08:00:00</BaselineStart>
+      <BaselineFinish>2026-04-30T17:00:00</BaselineFinish>
+      <Duration>PT640H0M0S</Duration>
+      <BaselineDuration>PT640H0M0S</BaselineDuration>
+      <ExtendedAttribute>
+        <FieldID>188743746</FieldID>
+        <Value>20</Value>
+      </ExtendedAttribute>
+    </Task>
+  </Tasks>
+</Project>

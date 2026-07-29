@@ -59,6 +59,15 @@ Ou, no Windows, basta executar `Iniciar Dashboard.bat`.
 
 Para habilitar upload de `.mpp` (opcional): instale o Java e descomente as linhas `mpxj` e `JPype1` em `requirements.txt`.
 
+## Testes
+
+A suíte de testes cobre leitura de XML, indicadores EVM, Curva S, portfólio, checklist, relatórios Excel/PDF e a interface (via `streamlit.testing.v1.AppTest`, sem navegador):
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest
+```
+
 ## Estrutura do projeto
 
 ```
@@ -73,7 +82,9 @@ cronograma/
   portfolio.py                Consolidação de múltiplos projetos
   relatorios.py                Exportação Excel/PDF (individual e portfólio)
   i18n.py                      Traduções PT/EN e formatação de datas
+tests/                       Suíte de testes (pytest + AppTest)
 requirements.txt
+requirements-dev.txt         Dependências extras para desenvolvimento/testes
 Iniciar Dashboard.bat        Atalho para rodar no Windows
 ```
 
