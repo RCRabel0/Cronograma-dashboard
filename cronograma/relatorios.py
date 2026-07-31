@@ -614,7 +614,6 @@ def gerar_pdf_status_reuniao(
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("TOPPADDING", (0, 0), (-1, -1), 12),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
-        ("GRID", (0, 0), (-1, -1), 0.5, colors.white),
     ]
     for col, bom in enumerate(bons_kpi):
         estilo_kpi.append(("BACKGROUND", (col, 0), (col, 0), _cor_cartao(bom)))
