@@ -328,39 +328,6 @@ TRADUCOES: dict[str, str] = {
     "Não há tarefas com datas suficientes para gerar o relatório executivo.":
         "There aren't enough tasks with dates to generate the executive report.",
 
-    # --- Report Semanal ---
-    "🏗️ Report Semanal": "🏗️ Weekly Report",
-    "Report Semanal de Obra": "Weekly Site Report",
-    "Semana {n}": "Week {n}",
-    "Gestor da obra": "Site manager",
-    "Status Geral": "Overall Status",
-    "Verde": "Green",
-    "Amarelo": "Yellow",
-    "Vermelho": "Red",
-    "KPIs principais": "Main KPIs",
-    "Avanço Físico": "Physical Progress",
-    "SPI > 1,00 = adiantado · SPI < 1,00 = atrasado": "SPI > 1.00 = ahead of schedule · SPI < 1.00 = behind schedule",
-    "Planejado: {pct:.0f}%": "Planned: {pct:.0f}%",
-    "Desvio: {delta:+.1f} p.p.": "Deviation: {delta:+.1f} p.p.",
-    "Forecast Término": "Finish Forecast",
-    "Baseline: {data}": "Baseline: {data}",
-    "Desembolso (CAPEX/OPEX)": "Disbursement (CAPEX/OPEX)",
-    "Orçado: {valor}": "Budgeted: {valor}",
-    "Realizado: {pct:.0f}%": "Actual: {pct:.0f}%",
-    "✅ Principais avanços": "✅ Main progress",
-    "🚩 Decisões pendentes": "🚩 Pending decisions",
-    "Descrição": "Description",
-    "Responsável": "Owner",
-    "Prazo": "Due date",
-    "💬 Observações": "💬 Notes",
-    "Mão de obra média da semana": "Average workforce this week",
-    "Horas trabalhadas na semana (HH)": "Hours worked this week (HH)",
-    "Acidentes com afastamento": "Lost-time accidents",
-    "Taxa de frequência": "Frequency rate",
-    "⬇️ Baixar Report Semanal (PDF)": "⬇️ Download Weekly Report (PDF)",
-    "Nenhuma decisão pendente registrada.": "No pending decisions recorded.",
-    "Nenhum avanço registrado para a semana.": "No progress recorded for the week.",
-
     # --- Percepções (metricas.py) ---
     "Não foi possível calcular o SPI (índice de prazo) porque o arquivo não contém dados de linha de base (baseline).":
         "Could not calculate SPI (schedule performance index) because the file has no baseline data.",
@@ -422,14 +389,6 @@ TRADUCOES: dict[str, str] = {
     "adiantamento": "advance",
     "CPI (índice de custo)": "CPI (cost performance index)",
     "CPI (índice de eficiência de prazo trabalhado)": "CPI (worked-schedule efficiency index)",
-    "Obra dentro do planejado, com desvios controlados e sob monitoramento.":
-        "Site is on track, with controlled deviations under monitoring.",
-    "Obra com desvios pontuais, já identificados e em monitoramento.":
-        "Site has isolated deviations, already identified and under monitoring.",
-    "Obra com desvios relevantes de prazo e/ou custo — ação corretiva necessária.":
-        "Site has significant schedule and/or cost deviations — corrective action required.",
-    "{nome} concluída – 100%": "{nome} completed – 100%",
-    "{nome} – {pct:.0f}% concluído": "{nome} – {pct:.0f}% complete",
 
     # --- Checklist: seções ---
     "1. Estrutura do Cronograma (WBS)": "1. Schedule Structure (WBS)",

@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date
 from typing import Optional
 
 from .i18n import formatar_data, t, tf
@@ -32,8 +32,6 @@ class Indicadores:
     tarefas_criticas_atrasadas: int
     tarefas_atrasadas: int
     total_tarefas: int
-    termino_planejado: date | None = None
-    termino_projetado: date | None = None
 
 
 def formatar_valor(valor: float, unidade: str) -> str:
@@ -157,8 +155,6 @@ def calcular_indicadores(
         tarefas_criticas_atrasadas=len(tarefas_criticas_atrasadas),
         tarefas_atrasadas=len(tarefas_atrasadas),
         total_tarefas=len(tarefas),
-        termino_planejado=termino_planejado,
-        termino_projetado=termino_projetado,
     )
 
 
@@ -313,67 +309,3 @@ def gerar_percepcoes(projeto: Projeto, indicadores: Indicadores, top_n_mudancas:
             )
 
     return percepcoes
-
-
-def calcular_status_geral(indicadores: Indicadores, idioma: str = "pt") -> tuple[str, str]:
-    """Classifica o status geral do projeto em 'verde', 'amarelo' ou 'vermelho' a partir
-    do SPI, do CPI e da quantidade de tarefas críticas atrasadas — o mesmo tipo de
-    semáforo usado num report semanal de obra. Retorna (cor, descrição já traduzida)."""
-    spi_critico = indicadores.spi is not None and indicadores.spi < 0.85
-    cpi_critico = indicadores.cpi is not None and indicadores.cpi < 0.85
-    spi_alerta = indicadores.spi is not None and indicadores.spi < 0.95
-    cpi_alerta = indicadores.cpi is not None and indicadores.cpi < 0.95
-
-    if spi_critico or cpi_critico or indicadores.tarefas_criticas_atrasadas >= 3:
-        return "vermelho", t(
-            "Obra com desvios relevantes de prazo e/ou custo — ação corretiva necessária.", idioma
-        )
-    if spi_alerta or cpi_alerta or indicadores.tarefas_criticas_atrasadas >= 1:
-        return "amarelo", t(
-            "Obra com desvios pontuais, já identificados e em monitoramento.", idioma
-        )
-    return "verde", t(
-        "Obra dentro do planejado, com desvios controlados e sob monitoramento.", idioma
-    )
-
-
-def sugerir_avancos_semana(
-    projeto: Projeto,
-    data_status: date,
-    dias_janela: int = 7,
-    top_n: int = 3,
-    idioma: str = "pt",
-) -> list[str]:
-    """Sugere textos para 'principais avanços da semana': primeiro as tarefas concluídas
-    (100%) com término real dentro da janela e, se não houver o suficiente, completa com
-    as tarefas em andamento mais próximas da conclusão. Serve só de ponto de partida —
-    o texto final fica num campo editável pelo usuário."""
-    inicio_semana = data_status - timedelta(days=dias_janela - 1)
-    concluidas = sorted(
-        (
-            tarefa for tarefa in projeto.tarefas_detalhe
-            if tarefa.percentual_concluido >= 100
-            and tarefa.termino_real is not None
-            and inicio_semana <= tarefa.termino_real <= data_status
-        ),
-        key=lambda tarefa: tarefa.termino_real,
-        reverse=True,
-    )
-    sugestoes = [
-        tf("{nome} concluída – 100%", idioma, nome=tarefa.nome) for tarefa in concluidas[:top_n]
-    ]
-    if len(sugestoes) < top_n:
-        em_andamento = sorted(
-            (tarefa for tarefa in projeto.tarefas_detalhe if 0 < tarefa.percentual_concluido < 100),
-            key=lambda tarefa: tarefa.percentual_concluido,
-            reverse=True,
-        )
-        for tarefa in em_andamento:
-            texto = tf(
-                "{nome} – {pct:.0f}% concluído", idioma, nome=tarefa.nome, pct=tarefa.percentual_concluido
-            )
-            if texto not in sugestoes:
-                sugestoes.append(texto)
-            if len(sugestoes) >= top_n:
-                break
-    return sugestoes
