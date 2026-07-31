@@ -1,7 +1,7 @@
 import os
 import smtplib
 import tempfile
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from email.mime.text import MIMEText
 
 import pandas as pd
@@ -17,9 +17,11 @@ from cronograma.leitor_mpp import MpxjIndisponivelError, ler_mpp
 from cronograma.leitor_xml import ArquivoInvalidoError, ler_xml
 from cronograma.metricas import (
     calcular_indicadores as _calcular_indicadores_impl,
+    calcular_status_geral,
     dias_atraso_tarefa,
     formatar_valor,
     gerar_percepcoes,
+    sugerir_avancos_semana,
 )
 from cronograma.portfolio import (
     calcular_indicadores_portfolio as _calcular_indicadores_portfolio_impl,
@@ -36,6 +38,7 @@ from cronograma.relatorios import (
     gerar_pdf as _gerar_pdf_impl,
     gerar_pdf_executivo as _gerar_pdf_executivo_impl,
     gerar_pdf_portfolio as _gerar_pdf_portfolio_impl,
+    gerar_pdf_report_semanal as _gerar_pdf_report_semanal_impl,
     gerar_pdf_status_reuniao as _gerar_pdf_status_reuniao_impl,
     tabela_recursos,
     tabela_tarefas,
@@ -74,6 +77,19 @@ def gerar_pdf_status_reuniao(
     return _gerar_pdf_status_reuniao_impl(
         projeto, indicadores, curva_s, riscos, marcos_pendentes, tarefas_atrasadas_top,
         resultado_checklist, periodo_linha_base_ativa_texto, data_status,
+    )
+
+
+@st.cache_data(show_spinner=False)
+def gerar_pdf_report_semanal(
+    projeto, indicadores, curva_s, status_cor, status_descricao, semana_numero,
+    periodo_inicio, periodo_fim, gestor_obra, termino_baseline, termino_projetado,
+    avancos, riscos, marcos_pendentes, decisoes_pendentes, observacoes,
+):
+    return _gerar_pdf_report_semanal_impl(
+        projeto, indicadores, curva_s, status_cor, status_descricao, semana_numero,
+        periodo_inicio, periodo_fim, gestor_obra, termino_baseline, termino_projetado,
+        avancos, riscos, marcos_pendentes, decisoes_pendentes, observacoes,
     )
 
 
@@ -356,6 +372,7 @@ else:
 _nomes_abas = [
     t("📊 Portfólio", idioma),
     t("🖥️ Status de Reunião", idioma),
+    t("🏗️ Report Semanal", idioma),
     t("📈 Resumo", idioma),
     t("📉 Curva S", idioma),
     t("✅ Tarefas", idioma),
@@ -365,7 +382,7 @@ _nomes_abas = [
     t("📤 Exportar", idioma),
 ]
 (
-    aba_portfolio, aba_status, aba_resumo, aba_curva, aba_tarefas, aba_gantt,
+    aba_portfolio, aba_status, aba_report_semanal, aba_resumo, aba_curva, aba_tarefas, aba_gantt,
     aba_checklist, aba_recursos, aba_exportar,
 ) = st.tabs(_nomes_abas)
 
@@ -636,6 +653,229 @@ with aba_status:
         t("⬇️ Baixar Status de Reunião (PDF)", idioma),
         data=pdf_status_bytes,
         file_name=f"status_reuniao_{projeto.nome.strip().replace(' ', '_')}.pdf",
+        mime="application/pdf",
+        width="stretch",
+    )
+
+with aba_report_semanal:
+    periodo_fim_semanal = data_status
+    periodo_inicio_semanal = data_status - timedelta(days=6)
+    semana_numero = data_status.isocalendar()[1]
+
+    st.subheader(f"🏗️ {t('Report Semanal de Obra', idioma)} — {projeto.nome}")
+    col_semana, col_gestor = st.columns([2, 1])
+    col_semana.caption(
+        tf("Semana {n}", idioma, n=semana_numero)
+        + f" · {formatar_data(periodo_inicio_semanal, idioma)} a {formatar_data(periodo_fim_semanal, idioma)}"
+    )
+    gestor_obra = col_gestor.text_input(
+        t("Gestor da obra", idioma),
+        key=f"rs_gestor_{nome_projeto_atual}",
+        label_visibility="collapsed",
+        placeholder=t("Gestor da obra", idioma),
+    )
+
+    status_cor, status_descricao = calcular_status_geral(indicadores, idioma=idioma)
+    _cores_status_ui = {"verde": "🟢", "amarelo": "🟡", "vermelho": "🔴"}
+    _rotulos_status_ui = {"verde": t("Verde", idioma), "amarelo": t("Amarelo", idioma), "vermelho": t("Vermelho", idioma)}
+
+    col_status, col_kpis = st.columns([1, 3])
+    with col_status:
+        with st.container(border=True, height="stretch"):
+            st.markdown(f"**{t('Status Geral', idioma)}**")
+            st.markdown(f"## {_cores_status_ui[status_cor]} {_rotulos_status_ui[status_cor]}")
+            st.caption(status_descricao)
+
+    with col_kpis:
+        orcamento_total_semanal = curva["Linha de Base"].max() if len(curva) else 0.0
+        pct_planejado_semanal = 0.0
+        if orcamento_total_semanal > 0 and len(curva):
+            _data_clip = pd.Timestamp(min(max(data_status, curva.index[0].date()), curva.index[-1].date()))
+            pct_planejado_semanal = curva.loc[_data_clip, "Linha de Base"] / orcamento_total_semanal * 100
+        desvio_avanco_semanal = indicadores.percentual_concluido - pct_planejado_semanal
+        pct_desembolso_semanal = (
+            (indicadores.ac_total / orcamento_total_semanal * 100) if orcamento_total_semanal > 0 else None
+        )
+        rotulo_desembolso = (
+            t("Desembolso (CAPEX/OPEX)", idioma) if indicadores.unidade == "R$" else t("Trabalho Real (AC)", idioma)
+        )
+
+        with st.container(horizontal=True):
+            st.metric(
+                t("Avanço Físico", idioma),
+                f"{indicadores.percentual_concluido:.0f}%",
+                delta=f"{desvio_avanco_semanal:+.1f} p.p.",
+                border=True,
+                help=tf("Planejado: {pct:.0f}%", idioma, pct=pct_planejado_semanal),
+            )
+            st.metric(
+                "SPI",
+                f"{indicadores.spi:.2f}" if indicadores.spi is not None else t("N/D", idioma),
+                delta=f"{indicadores.spi - 1:+.2f}" if indicadores.spi is not None else None,
+                border=True,
+                help=t("SPI > 1,00 = adiantado · SPI < 1,00 = atrasado", idioma),
+            )
+            st.metric(
+                t("Forecast Término", idioma),
+                formatar_data(indicadores.termino_projetado, idioma) if indicadores.termino_projetado else t("N/D", idioma),
+                delta=indicadores.atraso_dias if indicadores.atraso_dias else None,
+                delta_color="inverse",
+                border=True,
+                help=tf("Baseline: {data}", idioma, data=formatar_data(indicadores.termino_planejado, idioma))
+                if indicadores.termino_planejado else t("N/D", idioma),
+            )
+            st.metric(
+                rotulo_desembolso,
+                formatar_valor(indicadores.ac_total, indicadores.unidade),
+                delta=tf("Realizado: {pct:.0f}%", idioma, pct=pct_desembolso_semanal) if pct_desembolso_semanal is not None else None,
+                delta_color="off",
+                border=True,
+                help=tf("Orçado: {valor}", idioma, valor=formatar_valor(orcamento_total_semanal, indicadores.unidade)),
+            )
+
+    st.divider()
+    st.markdown(f"**{t('Curva S — Linha de Base x Realizado/Previsto', idioma)}**")
+    total_curva_semanal = curva["Linha de Base"].max()
+    fig_semanal = go.Figure()
+    if total_curva_semanal > 0:
+        fig_semanal.add_trace(
+            go.Scatter(
+                x=curva.index, y=curva["Linha de Base"] / total_curva_semanal * 100,
+                name=t("Linha de Base", idioma), line=dict(dash="dash", color="#5B8DB8"),
+            )
+        )
+        fig_semanal.add_trace(
+            go.Scatter(
+                x=curva.index, y=curva["Realizado / Previsto"] / total_curva_semanal * 100,
+                name=t("Realizado / Previsto", idioma), line=dict(color="#2E8B57"),
+            )
+        )
+    fig_semanal.add_vline(x=pd.Timestamp(data_status), line_dash="dot", line_color="gray")
+    fig_semanal.update_layout(
+        height=260, margin=dict(l=10, r=10, t=10, b=10),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+        yaxis_ticksuffix="%",
+    )
+    st.plotly_chart(fig_semanal, width="stretch", key="curva_s_report_semanal")
+
+    avancos_sugeridos = sugerir_avancos_semana(projeto, data_status, idioma=idioma)
+    col_avancos, col_riscos_semanal = st.columns(2)
+    with col_avancos:
+        st.markdown(f"**{t('✅ Principais avanços', idioma)}**")
+        avancos_texto = st.text_area(
+            t("✅ Principais avanços", idioma),
+            value="\n".join(avancos_sugeridos),
+            key=f"rs_avancos_{nome_projeto_atual}",
+            label_visibility="collapsed",
+            height=140,
+        )
+    with col_riscos_semanal:
+        st.markdown(f"**{t('⚠️ Principais riscos', idioma)}**")
+        riscos_semanal = [texto for categoria, texto in percepcoes if categoria == "alerta"][:3]
+        if riscos_semanal:
+            for texto in riscos_semanal:
+                st.warning(texto, icon="⚠️")
+        else:
+            st.success(t("Nenhum risco identificado no momento.", idioma))
+
+    col_marcos_semanal, col_decisoes = st.columns(2)
+    with col_marcos_semanal:
+        st.markdown(f"**{t('🚩 Próximos marcos', idioma)}**")
+        marcos_pendentes_semanal = sorted(
+            [tarefa for tarefa in projeto.tarefas_detalhe if tarefa.marco and tarefa.percentual_concluido < 100 and tarefa.termino],
+            key=lambda tarefa: tarefa.termino,
+        )[:5]
+        if marcos_pendentes_semanal:
+            for marco in marcos_pendentes_semanal:
+                icone_marco = "🟡" if marco.percentual_concluido > 0 else "⚪"
+                st.markdown(f"- {icone_marco} {marco.nome} — {formatar_data(marco.termino, idioma)}")
+        else:
+            st.caption(t("Nenhum marco pendente.", idioma))
+
+    with col_decisoes:
+        st.markdown(f"**{t('🚩 Decisões pendentes', idioma)}**")
+        # As chaves internas das colunas ficam fixas (não traduzidas) para não perder as
+        # edições do usuário caso ele troque de idioma no meio do preenchimento — só o
+        # rótulo exibido (via column_config) muda com o idioma.
+        df_decisoes_vazio = pd.DataFrame(
+            {
+                "descricao": pd.Series(dtype="string"),
+                "responsavel": pd.Series(dtype="string"),
+                "prazo": pd.Series(dtype="object"),
+            }
+        )
+        decisoes_df = st.data_editor(
+            df_decisoes_vazio,
+            key=f"rs_decisoes_{nome_projeto_atual}",
+            num_rows="dynamic",
+            hide_index=True,
+            width="stretch",
+            column_config={
+                "descricao": st.column_config.TextColumn(t("Descrição", idioma)),
+                "responsavel": st.column_config.TextColumn(t("Responsável", idioma)),
+                "prazo": st.column_config.DateColumn(t("Prazo", idioma), format=formato_coluna_data(idioma)),
+            },
+        )
+
+    st.markdown(f"**{t('💬 Observações', idioma)}**")
+    col_obs1, col_obs2, col_obs3, col_obs4 = st.columns(4)
+    mao_de_obra_semanal = col_obs1.number_input(
+        t("Mão de obra média da semana", idioma), min_value=0, step=1, key=f"rs_mao_obra_{nome_projeto_atual}"
+    )
+    horas_trabalhadas_semanal = col_obs2.number_input(
+        t("Horas trabalhadas na semana (HH)", idioma), min_value=0, step=1, key=f"rs_horas_{nome_projeto_atual}"
+    )
+    acidentes_semanal = col_obs3.number_input(
+        t("Acidentes com afastamento", idioma), min_value=0, step=1, key=f"rs_acidentes_{nome_projeto_atual}"
+    )
+    taxa_frequencia_semanal = col_obs4.number_input(
+        t("Taxa de frequência", idioma), min_value=0.0, step=0.01, format="%.2f", key=f"rs_taxa_{nome_projeto_atual}"
+    )
+
+    st.divider()
+
+    def _formatar_prazo_decisao(valor):
+        if valor is None or (isinstance(valor, float) and pd.isna(valor)):
+            return ""
+        if hasattr(valor, "date") and callable(valor.date):
+            valor = valor.date()
+        return formatar_data(valor, "pt") if isinstance(valor, date) else str(valor)
+
+    decisoes_pendentes_export = []
+    for _, linha_decisao in decisoes_df.iterrows():
+        descricao_decisao = str(linha_decisao.get("descricao") or "").strip()
+        if not descricao_decisao:
+            continue
+        decisoes_pendentes_export.append(
+            {
+                "descricao": descricao_decisao,
+                "responsavel": str(linha_decisao.get("responsavel") or "").strip(),
+                "prazo": _formatar_prazo_decisao(linha_decisao.get("prazo")),
+            }
+        )
+
+    # O relatório exportado permanece sempre em português, independente do idioma da interface.
+    status_cor_exportacao, status_descricao_exportacao = calcular_status_geral(indicadores, idioma="pt")
+    avancos_exportacao = [linha.strip() for linha in avancos_texto.splitlines() if linha.strip()]
+    riscos_exportacao_semanal = [
+        texto for categoria, texto in gerar_percepcoes(projeto, indicadores, idioma="pt") if categoria == "alerta"
+    ][:3]
+    pdf_semanal_bytes = gerar_pdf_report_semanal(
+        projeto, indicadores, curva, status_cor_exportacao, status_descricao_exportacao, semana_numero,
+        periodo_inicio_semanal, periodo_fim_semanal, gestor_obra,
+        indicadores.termino_planejado, indicadores.termino_projetado,
+        avancos_exportacao, riscos_exportacao_semanal, marcos_pendentes_semanal, decisoes_pendentes_export,
+        {
+            "mao_de_obra": mao_de_obra_semanal,
+            "horas_trabalhadas": horas_trabalhadas_semanal,
+            "acidentes": acidentes_semanal,
+            "taxa_frequencia": taxa_frequencia_semanal,
+        },
+    )
+    st.download_button(
+        t("⬇️ Baixar Report Semanal (PDF)", idioma),
+        data=pdf_semanal_bytes,
+        file_name=f"report_semanal_{projeto.nome.strip().replace(' ', '_')}_semana{semana_numero}.pdf",
         mime="application/pdf",
         width="stretch",
     )
