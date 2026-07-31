@@ -11,6 +11,7 @@ from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
 from reportlab.platypus import (
+    HRFlowable,
     Image,
     Paragraph,
     SimpleDocTemplate,
@@ -448,16 +449,24 @@ def _grafico_curva_s_png(curva_s: pd.DataFrame, unidade: str) -> bytes:
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
+    # Mesma paleta usada nos gráficos da interface (Streamlit/Plotly), para os PDFs
+    # exportados terem a cara do resto do programa em vez das cores padrão do matplotlib.
     fig, ax = plt.subplots(figsize=(16, 8))
-    colunas_grafico = ["Linha de Base", "Realizado / Previsto"]
-    for coluna in colunas_grafico:
-        estilo = "--" if coluna == "Linha de Base" else "-"
-        ax.plot(curva_s.index, curva_s[coluna], label=coluna, linewidth=2, linestyle=estilo)
-    ax.set_title("Curva S - Linha de Base x Realizado/Previsto")
+    ax.plot(
+        curva_s.index, curva_s["Linha de Base"], label="Linha de Base",
+        linewidth=2.2, linestyle="--", color="#5B8DB8",
+    )
+    ax.plot(
+        curva_s.index, curva_s["Realizado / Previsto"], label="Realizado / Previsto",
+        linewidth=2.4, color="#2E8B57",
+    )
+    ax.set_title("Curva S — Linha de Base x Realizado/Previsto", fontsize=15, fontweight="bold", color="#2E4053")
     ax.set_xlabel("Data")
     ax.set_ylabel("Custo acumulado" if unidade == "R$" else "Trabalho acumulado (horas)")
-    ax.legend()
-    ax.grid(True, alpha=0.3)
+    ax.legend(frameon=False)
+    ax.grid(True, alpha=0.25, linestyle=":")
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
     fig.autofmt_xdate()
 
     saida = io.BytesIO()
@@ -522,8 +531,17 @@ def gerar_pdf(
 
 def _cor_cartao(bom: bool | None):
     if bom is None:
-        return colors.HexColor("#EAECEE")
+        return colors.HexColor("#E8ECEF")
     return colors.HexColor("#D4EFDF") if bom else colors.HexColor("#F8D7DA")
+
+
+def _titulo_secao(texto: str, estilo_titulo) -> list:
+    """Cabeçalho de seção padronizado (título em azul-marinho + régua fina embaixo),
+    reaproveitado nos vários blocos do relatório para dar consistência visual."""
+    return [
+        Paragraph(texto, estilo_titulo),
+        HRFlowable(width="100%", thickness=0.8, color=colors.HexColor("#AEB6BF"), spaceBefore=1, spaceAfter=6),
+    ]
 
 
 def gerar_pdf_status_reuniao(
@@ -549,6 +567,14 @@ def gerar_pdf_status_reuniao(
     largura_util = landscape(A4)[0] - 2.4 * cm
     elementos = []
 
+    estilo_titulo_secao = ParagraphStyle(
+        "titulo_secao_status", parent=estilos["Heading3"],
+        fontName="Helvetica-Bold", textColor=colors.HexColor("#2E4053"), spaceAfter=0,
+    )
+    estilo_kpi_centro = ParagraphStyle(
+        "kpi_centro_status", parent=estilos["Normal"], alignment=1, leading=13,
+    )
+
     elementos.append(Paragraph(f"Status de Reunião — {projeto.nome}", estilos["Title"]))
     elementos.append(
         Paragraph(
@@ -558,7 +584,7 @@ def gerar_pdf_status_reuniao(
             estilos["Normal"],
         )
     )
-    elementos.append(Spacer(1, 0.4 * cm))
+    elementos.append(Spacer(1, 0.45 * cm))
 
     valores_kpi = [
         f"{indicadores.percentual_concluido:.1f}%",
@@ -575,35 +601,39 @@ def gerar_pdf_status_reuniao(
         indicadores.atraso_dias <= 0,
         indicadores.tarefas_criticas_atrasadas == 0,
     ]
-    tabela_kpi = Table([valores_kpi, rotulos_kpi], colWidths=[largura_util / 5] * 5)
+    # Valor e rótulo ficam juntos num único parágrafo (com <br/>) em vez de duas linhas
+    # separadas da tabela — assim o tamanho da célula é calculado corretamente e as
+    # duas linhas nunca se sobrepõem, independente do tamanho da fonte do valor.
+    celulas_kpi = [
+        Paragraph(f"<font size=19><b>{valor}</b></font><br/><font size=8.5>{rotulo}</font>", estilo_kpi_centro)
+        for valor, rotulo in zip(valores_kpi, rotulos_kpi)
+    ]
+    tabela_kpi = Table([celulas_kpi], colWidths=[largura_util / 5] * 5)
     estilo_kpi = [
-        ("FONTSIZE", (0, 0), (-1, 0), 20),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 1), (-1, 1), 9),
         ("ALIGN", (0, 0), (-1, -1), "CENTER"),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("TOPPADDING", (0, 0), (-1, 0), 10),
-        ("BOTTOMPADDING", (0, 1), (-1, 1), 8),
+        ("TOPPADDING", (0, 0), (-1, -1), 12),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
         ("GRID", (0, 0), (-1, -1), 0.5, colors.white),
     ]
     for col, bom in enumerate(bons_kpi):
-        estilo_kpi.append(("BACKGROUND", (col, 0), (col, 1), _cor_cartao(bom)))
+        estilo_kpi.append(("BACKGROUND", (col, 0), (col, 0), _cor_cartao(bom)))
     tabela_kpi.setStyle(TableStyle(estilo_kpi))
     elementos.append(tabela_kpi)
-    elementos.append(Spacer(1, 0.5 * cm))
+    elementos.append(Spacer(1, 0.55 * cm))
 
     png_curva = _grafico_curva_s_png(curva_s, indicadores.unidade)
     imagem_curva = _imagem_proporcional(png_curva, largura_util / cm * 0.55, 9)
 
-    estilo_lista = ParagraphStyle("lista_status", parent=estilos["Normal"], fontSize=8.5, leading=11)
-    bloco_direita = [Paragraph("Principais riscos", estilos["Heading3"])]
+    estilo_lista = ParagraphStyle("lista_status", parent=estilos["Normal"], fontSize=8.5, leading=12)
+    bloco_direita = _titulo_secao("Principais riscos", estilo_titulo_secao)
     if riscos:
         for texto in riscos:
             bloco_direita.append(Paragraph(f"• {texto}", estilo_lista))
     else:
         bloco_direita.append(Paragraph("Nenhum risco identificado no momento.", estilo_lista))
-    bloco_direita.append(Spacer(1, 0.3 * cm))
-    bloco_direita.append(Paragraph("Próximos marcos", estilos["Heading3"]))
+    bloco_direita.append(Spacer(1, 0.35 * cm))
+    bloco_direita.extend(_titulo_secao("Próximos marcos", estilo_titulo_secao))
     if marcos_pendentes:
         for marco in marcos_pendentes:
             data_marco = f"{marco.termino:%d/%m/%Y}" if marco.termino else "N/D"
@@ -615,12 +645,15 @@ def gerar_pdf_status_reuniao(
         [[imagem_curva, bloco_direita]],
         colWidths=[largura_util * 0.55, largura_util * 0.45],
     )
-    tabela_duas_colunas.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP")]))
+    tabela_duas_colunas.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (1, 0), (1, 0), 14),
+    ]))
     elementos.append(tabela_duas_colunas)
     elementos.append(Spacer(1, 0.5 * cm))
 
-    elementos.append(
-        Paragraph(f"Tarefas mais atrasadas ({indicadores.tarefas_atrasadas})", estilos["Heading3"])
+    elementos.extend(
+        _titulo_secao(f"Tarefas mais atrasadas ({indicadores.tarefas_atrasadas})", estilo_titulo_secao)
     )
     if tarefas_atrasadas_top:
         dados_tabela = [["Tarefa", "Crítica", "Atraso (dias)", "% Concluído"]]
@@ -638,8 +671,12 @@ def gerar_pdf_status_reuniao(
                 [
                     ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2E4053")),
                     ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                    ("GRID", (0, 0), (-1, -1), 0.4, colors.grey),
-                    ("FONTSIZE", (0, 0), (-1, -1), 8),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#D5D8DC")),
+                    ("FONTSIZE", (0, 0), (-1, -1), 8.5),
+                    ("ALIGN", (1, 0), (-1, -1), "CENTER"),
+                    ("TOPPADDING", (0, 0), (-1, -1), 5),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
                     ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.white]),
                 ]
             )
