@@ -1,4 +1,4 @@
-# 📊 Dashboard de Cronograma de Projeto
+# 📊 Gestão de Projetos
 
 Aplicativo web (Streamlit) para analisar cronogramas de projeto exportados do **MS Project**, calcular indicadores de valor agregado (EVM), gerar Curva S, Gráfico de Gantt, checklist de qualidade e relatórios — para um único projeto ou uma visão consolidada de **portfólio** com vários projetos ao mesmo tempo.
 

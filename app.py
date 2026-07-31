@@ -124,7 +124,7 @@ _idioma_salvo = st.session_state.get("idioma_ui", "Português")
 _idioma_inicial = "en" if _idioma_salvo == "English" else "pt"
 
 st.set_page_config(
-    page_title=t("Dashboard de Cronograma de Projeto", _idioma_inicial),
+    page_title=t("Gestão de Projetos", _idioma_inicial),
     page_icon="📊",
     layout="wide",
 )
@@ -156,7 +156,7 @@ def _enviar_sugestao_por_email(mensagem: str, contato: str) -> tuple[bool, str]:
         corpo += f"\n\n---\nContato informado pelo usuário: {contato}"
 
     msg = MIMEText(corpo, "plain", "utf-8")
-    msg["Subject"] = "Sugestão - Dashboard de Cronograma"
+    msg["Subject"] = "Sugestão - Gestão de Projetos"
     msg["From"] = smtp_user
     msg["To"] = "roberto.rabelo@outlook.com.br"
 
@@ -241,7 +241,7 @@ for arquivo in arquivos or []:
 st.session_state["projetos"] = projetos_carregados
 
 if not st.session_state.get("projetos"):
-    st.title(t("📊 Dashboard de Cronograma de Projeto", idioma))
+    st.title(t("📊 Gestão de Projetos", idioma))
     st.info(
         t(
             "👈 Envie um arquivo **.xml** (exportado do MS Project) ou **.mpp** na barra lateral para começar.\n\n"

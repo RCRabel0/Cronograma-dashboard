@@ -56,7 +56,8 @@ TRADUCOES: dict[str, str] = {
         "Upload more than one file to see the Portfolio tab.",
     "Não foi possível ler o arquivo {nome}: {erro}": "Could not read the file {nome}: {erro}",
     "Ocorreu um erro inesperado ao ler o arquivo {nome}: {erro}": "An unexpected error occurred while reading the file {nome}: {erro}",
-    "📊 Dashboard de Cronograma de Projeto": "📊 Project Schedule Dashboard",
+    "📊 Gestão de Projetos": "📊 Project Management",
+    "Gestão de Projetos": "Project Management",
     "👈 Envie um arquivo **.xml** (exportado do MS Project) ou **.mpp** na barra lateral para começar.\n\n"
     "Para exportar o XML no MS Project: **Arquivo > Salvar Como**, escolha o tipo **XML**.":
         "👈 Upload an **.xml** file (exported from MS Project) or **.mpp** in the sidebar to get started.\n\n"

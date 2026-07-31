@@ -4,7 +4,7 @@ setlocal
 cd /d "%~dp0"
 
 echo ============================================
-echo   Dashboard de Cronograma de Projeto
+echo   Gestão de Projetos
 echo ============================================
 echo.
 
