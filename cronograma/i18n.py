@@ -195,6 +195,7 @@ TRADUCOES: dict[str, str] = {
     "Crítica": "Critical",
     "Início": "Start",
     "Término": "Finish",
+    "Início (linha de base)": "Start (baseline)",
     "Término (linha de base)": "Finish (baseline)",
     "Atraso (dias)": "Delay (days)",
     "Sim": "Yes",

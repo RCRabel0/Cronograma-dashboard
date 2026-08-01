@@ -74,7 +74,10 @@ def test_aba_simulacao(app):
     aba = app.tabs[2]
     assert aba.dataframe  # a tabela de tarefas com a coluna de checkbox "Concluir (100%)"
     colunas = aba.dataframe[0].value.columns
-    assert {"concluir", "tarefa", "critica", "percentual"} <= set(colunas)
+    assert {
+        "concluir", "tarefa", "critica", "percentual",
+        "inicio_atual", "termino_atual", "inicio_planejado", "termino_planejado",
+    } <= set(colunas)
     rotulos_metricas = {m.label for m in aba.metric}
     assert {"% Concluído", "SPI", "CPI", "Forecast Término"} <= rotulos_metricas
 

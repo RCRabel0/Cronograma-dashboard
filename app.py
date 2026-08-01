@@ -763,6 +763,10 @@ with aba_simulacao:
                     "tarefa": [tarefa_.nome for tarefa_ in tarefas_simulaveis],
                     "critica": [t("Sim", idioma) if tarefa_.critica else t("Não", idioma) for tarefa_ in tarefas_simulaveis],
                     "percentual": [tarefa_.percentual_concluido for tarefa_ in tarefas_simulaveis],
+                    "inicio_atual": [tarefa_.inicio for tarefa_ in tarefas_simulaveis],
+                    "termino_atual": [tarefa_.termino for tarefa_ in tarefas_simulaveis],
+                    "inicio_planejado": [tarefa_.inicio_linha_base for tarefa_ in tarefas_simulaveis],
+                    "termino_planejado": [tarefa_.termino_linha_base for tarefa_ in tarefas_simulaveis],
                 }
             )
             tarefas_editadas_sim = st.data_editor(
@@ -770,12 +774,23 @@ with aba_simulacao:
                 key=f"sim_tabela_{nome_projeto_atual}_{somente_criticas_marcos_sim}",
                 hide_index=True,
                 width="stretch",
-                disabled=["tarefa", "critica", "percentual"],
+                disabled=[
+                    "tarefa", "critica", "percentual",
+                    "inicio_atual", "termino_atual", "inicio_planejado", "termino_planejado",
+                ],
                 column_config={
                     "concluir": st.column_config.CheckboxColumn(t("Concluir (100%)", idioma)),
                     "tarefa": st.column_config.TextColumn(t("Tarefa", idioma)),
                     "critica": st.column_config.TextColumn(t("Crítica", idioma)),
                     "percentual": st.column_config.NumberColumn(t("% Concluído", idioma), format="%.0f%%"),
+                    "inicio_atual": st.column_config.DateColumn(t("Início", idioma), format=formato_coluna_data(idioma)),
+                    "termino_atual": st.column_config.DateColumn(t("Término", idioma), format=formato_coluna_data(idioma)),
+                    "inicio_planejado": st.column_config.DateColumn(
+                        t("Início (linha de base)", idioma), format=formato_coluna_data(idioma)
+                    ),
+                    "termino_planejado": st.column_config.DateColumn(
+                        t("Término (linha de base)", idioma), format=formato_coluna_data(idioma)
+                    ),
                 },
             )
             uids_selecionados_sim = [
