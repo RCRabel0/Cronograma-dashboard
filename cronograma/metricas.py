@@ -472,3 +472,46 @@ def simular_conclusao_tarefas(projeto: Projeto, uids_tarefas: list[str]) -> Proj
         if tarefa.uid in uids_selecionados:
             tarefa.percentual_concluido = 100.0
     return projeto_simulado
+
+
+def identificar_sucessoras_diretas(projeto: Projeto, uid_tarefa: str) -> list[Tarefa]:
+    """Retorna as tarefas que têm a tarefa informada como predecessora direta — ou
+    seja, dependem dela para começar. Usado para saber o que é impactado quando essa
+    tarefa é concluída."""
+    return [
+        tarefa for tarefa in projeto.tarefas_detalhe
+        if any(dep.predecessora_uid == uid_tarefa for dep in tarefa.dependencias)
+    ]
+
+
+def gerar_observacoes_simulacao(
+    projeto: Projeto, uids_concluidas: list[str], idioma: str = "pt"
+) -> list[str]:
+    """Gera um texto descritivo por tarefa marcada como concluída na simulação de 'e
+    se', explicando quais outras atividades são impactadas (sucessoras diretas que
+    passam a poder começar) e se a tarefa concluída era crítica."""
+    observacoes: list[str] = []
+    tarefas_por_uid = {tarefa.uid: tarefa for tarefa in projeto.tarefas_detalhe}
+    for uid in uids_concluidas:
+        tarefa = tarefas_por_uid.get(uid)
+        if tarefa is None:
+            continue
+        sucessoras = identificar_sucessoras_diretas(projeto, uid)
+        if sucessoras:
+            nomes_sucessoras = ", ".join(f"'{sucessora.nome}'" for sucessora in sucessoras)
+            texto = tf(
+                "Ao concluir '{nome}', {n} tarefa(s) sucessora(s) pode(m) ser iniciada(s): {sucessoras}.",
+                idioma, nome=tarefa.nome, n=len(sucessoras), sucessoras=nomes_sucessoras,
+            )
+        else:
+            texto = tf(
+                "Ao concluir '{nome}', nenhuma outra tarefa depende diretamente dela no cronograma.",
+                idioma, nome=tarefa.nome,
+            )
+        if tarefa.critica:
+            texto += " " + t(
+                "Como é uma tarefa crítica, isso também reduz o risco no caminho crítico do projeto.",
+                idioma,
+            )
+        observacoes.append(texto)
+    return observacoes

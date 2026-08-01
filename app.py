@@ -22,6 +22,7 @@ from cronograma.metricas import (
     calcular_indicadores as _calcular_indicadores_impl,
     dias_atraso_tarefa,
     formatar_valor,
+    gerar_observacoes_simulacao,
     gerar_percepcoes,
     gerar_recomendacoes,
     simular_conclusao_tarefas,
@@ -838,6 +839,12 @@ with aba_simulacao:
                     idioma,
                 ),
             )
+
+        if uids_selecionados_sim:
+            observacoes_sim = gerar_observacoes_simulacao(projeto, uids_selecionados_sim, idioma=idioma)
+            st.markdown(f"**{t('Observações', idioma)}**")
+            for texto_observacao_sim in observacoes_sim:
+                st.caption(f"• {texto_observacao_sim}")
 
         st.caption(
             t(

@@ -6,12 +6,15 @@ from cronograma.metricas import (
     avaliar_riscos_tarefas,
     calcular_faixa_previsao_termino,
     calcular_indicadores,
+    gerar_observacoes_simulacao,
     gerar_percepcoes,
     gerar_recomendacoes,
+    identificar_sucessoras_diretas,
     peso_tarefa,
     simular_alteracao_tarefa,
     simular_conclusao_tarefas,
 )
+from cronograma.modelos import Dependencia, Projeto, Tarefa
 
 DATA_STATUS = date(2026, 7, 24)
 
@@ -172,3 +175,47 @@ def test_simular_conclusao_tarefas_lista_vazia_nao_muda_indicadores(projeto_com_
     ind_original = calcular_indicadores(projeto_com_custo, DATA_STATUS)
     ind_simulado = calcular_indicadores(projeto_simulado, DATA_STATUS)
     assert ind_simulado.percentual_concluido == pytest.approx(ind_original.percentual_concluido)
+
+
+@pytest.fixture()
+def projeto_com_dependencias():
+    fundacao = Tarefa(uid="1", id=1, nome="Fundação", critica=True)
+    estrutura = Tarefa(
+        uid="2", id=2, nome="Estrutura", critica=True,
+        dependencias=[Dependencia(predecessora_uid="1")],
+    )
+    acabamento = Tarefa(
+        uid="3", id=3, nome="Acabamento", critica=False,
+        dependencias=[Dependencia(predecessora_uid="2")],
+    )
+    isolada = Tarefa(uid="4", id=4, nome="Tarefa isolada", critica=False)
+    return Projeto(nome="Projeto com dependências", tarefas=[fundacao, estrutura, acabamento, isolada])
+
+
+def test_identificar_sucessoras_diretas(projeto_com_dependencias):
+    sucessoras_fundacao = identificar_sucessoras_diretas(projeto_com_dependencias, "1")
+    assert [t.nome for t in sucessoras_fundacao] == ["Estrutura"]
+
+    sucessoras_isolada = identificar_sucessoras_diretas(projeto_com_dependencias, "4")
+    assert sucessoras_isolada == []
+
+
+def test_gerar_observacoes_simulacao_com_sucessora_critica(projeto_com_dependencias):
+    observacoes = gerar_observacoes_simulacao(projeto_com_dependencias, ["1"], idioma="pt")
+    assert len(observacoes) == 1
+    assert "Estrutura" in observacoes[0]
+    assert "caminho crítico" in observacoes[0]
+
+
+def test_gerar_observacoes_simulacao_sem_sucessoras(projeto_com_dependencias):
+    observacoes = gerar_observacoes_simulacao(projeto_com_dependencias, ["4"], idioma="pt")
+    assert len(observacoes) == 1
+    assert "nenhuma outra tarefa depende diretamente dela" in observacoes[0]
+    assert "caminho crítico" not in observacoes[0]
+
+
+def test_gerar_observacoes_simulacao_ingles(projeto_com_dependencias):
+    observacoes_pt = gerar_observacoes_simulacao(projeto_com_dependencias, ["1"], idioma="pt")
+    observacoes_en = gerar_observacoes_simulacao(projeto_com_dependencias, ["1"], idioma="en")
+    assert observacoes_en != observacoes_pt
+    assert "Estrutura" in observacoes_en[0]

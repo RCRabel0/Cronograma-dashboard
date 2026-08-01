@@ -154,6 +154,13 @@ TRADUCOES: dict[str, str] = {
     "Nenhuma tarefa encontrada com esse filtro.": "No task found with this filter.",
     "Não há tarefas pendentes para simular — o projeto já está 100% concluído.":
         "There are no pending tasks to simulate — the project is already 100% complete.",
+    "Observações": "Notes",
+    "Ao concluir '{nome}', {n} tarefa(s) sucessora(s) pode(m) ser iniciada(s): {sucessoras}.":
+        "By completing '{nome}', {n} successor task(s) can now start: {sucessoras}.",
+    "Ao concluir '{nome}', nenhuma outra tarefa depende diretamente dela no cronograma.":
+        "By completing '{nome}', no other task in the schedule depends directly on it.",
+    "Como é uma tarefa crítica, isso também reduz o risco no caminho crítico do projeto.":
+        "Since it's a critical task, this also reduces risk on the project's critical path.",
 
     # --- Portfólio ---
     "Portfólio de Projetos": "Project Portfolio",

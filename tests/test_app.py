@@ -123,6 +123,19 @@ def test_simulacao_marcar_tarefa_concluida_aumenta_percentual(app):
     percentual_depois = next(m for m in aba_depois.metric if m.label == "% Concluído").value
     assert percentual_depois != percentual_antes
 
+    # 'exemplo_cronograma.xml' não tem vínculos entre tarefas (PredecessorLink), então a
+    # observação deve cair no caso "nenhuma outra tarefa depende diretamente dela".
+    textos_caption = " ".join(c.value for c in aba_depois.caption)
+    assert "Testes de Aceitação" in textos_caption
+    assert "nenhuma outra tarefa depende diretamente dela" in textos_caption
+
+
+def test_simulacao_sem_selecao_nao_mostra_observacoes(app):
+    _upload(app, "exemplo.xml", _ler(RAIZ / "exemplo_cronograma.xml"))
+    aba = app.tabs[2]
+    textos_markdown = " ".join(m.value for m in aba.markdown)
+    assert "Observações" not in textos_markdown
+
 
 def test_seletor_peso_editado(app):
     _upload(app, "com_peso.xml", _ler(RAIZ / "tests/fixtures/cronograma_com_peso.xml"))
