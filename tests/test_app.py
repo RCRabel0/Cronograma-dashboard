@@ -78,6 +78,24 @@ def test_aba_simulacao(app):
     assert {"% Concluído", "SPI", "CPI", "Forecast Término"} <= rotulos_metricas
 
 
+def test_simulacao_filtro_criticas_e_marcos(app):
+    _upload(app, "exemplo.xml", _ler(RAIZ / "exemplo_cronograma.xml"))
+    aba = app.tabs[2]
+    # Sem o filtro: marcos ficam de fora e tarefas não críticas aparecem normalmente.
+    opcoes_sem_filtro = aba.selectbox[0].options
+    assert "Testes de Aceitação" in opcoes_sem_filtro
+    assert "Go-Live" not in opcoes_sem_filtro
+
+    aba.checkbox[0].set_value(True).run(timeout=TIMEOUT)
+    assert not app.exception
+
+    # Com o filtro: só tarefas críticas e marcos não concluídos aparecem.
+    aba_filtrada = app.tabs[2]
+    opcoes_com_filtro = aba_filtrada.selectbox[0].options
+    assert "Go-Live" in opcoes_com_filtro
+    assert "Testes de Aceitação" not in opcoes_com_filtro
+
+
 def test_simulacao_100_por_cento_aumenta_percentual_concluido(app):
     _upload(app, "exemplo.xml", _ler(RAIZ / "exemplo_cronograma.xml"))
     aba = app.tabs[2]

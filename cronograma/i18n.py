@@ -143,6 +143,7 @@ TRADUCOES: dict[str, str] = {
         "This simulation does not recalculate task dependencies — it reflects only the "
         "direct effect of the changed task on the aggregate indicators and on the "
         "project's finish date (when it is the latest one).",
+    "Mostrar apenas tarefas críticas e marcos não concluídos": "Show only critical tasks and unfinished milestones",
     "Escolha uma tarefa": "Choose a task",
     "% Concluído hipotético": "Hypothetical % Complete",
     "Ajuste no término (dias)": "Finish date adjustment (days)",
@@ -153,6 +154,7 @@ TRADUCOES: dict[str, str] = {
     "Forecast Término": "Finish Forecast",
     "Envie um cronograma com pelo menos uma tarefa para simular cenários.":
         "Upload a schedule with at least one task to simulate scenarios.",
+    "Nenhuma tarefa encontrada com esse filtro.": "No task found with this filter.",
 
     # --- Portfólio ---
     "Portfólio de Projetos": "Project Portfolio",

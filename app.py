@@ -738,9 +738,20 @@ with aba_simulacao:
         )
     )
 
-    tarefas_simulaveis = [tarefa_ for tarefa_ in projeto.tarefas_detalhe if not tarefa_.marco]
+    somente_criticas_marcos_sim = st.checkbox(
+        t("Mostrar apenas tarefas críticas e marcos não concluídos", idioma),
+        key=f"sim_filtro_{nome_projeto_atual}",
+    )
+    if somente_criticas_marcos_sim:
+        tarefas_simulaveis = [
+            tarefa_ for tarefa_ in projeto.tarefas_detalhe
+            if tarefa_.critica or (tarefa_.marco and tarefa_.percentual_concluido < 100)
+        ]
+    else:
+        tarefas_simulaveis = [tarefa_ for tarefa_ in projeto.tarefas_detalhe if not tarefa_.marco]
+
     if not tarefas_simulaveis:
-        st.info(t("Envie um cronograma com pelo menos uma tarefa para simular cenários.", idioma))
+        st.info(t("Nenhuma tarefa encontrada com esse filtro.", idioma) if somente_criticas_marcos_sim else t("Envie um cronograma com pelo menos uma tarefa para simular cenários.", idioma))
     else:
         nomes_tarefas_simulaveis = [tarefa_.nome for tarefa_ in tarefas_simulaveis]
         # Por padrão, sugere uma tarefa ainda não concluída — mais útil para simular
