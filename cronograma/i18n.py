@@ -133,28 +133,27 @@ TRADUCOES: dict[str, str] = {
 
     # --- Simulação 'e se' ---
     "Simulação \"e se\"": "\"What if\" simulation",
-    "Teste hipóteses sobre uma tarefa e veja o impacto estimado nos indicadores do projeto, "
-    "sem alterar os dados originais.":
-        "Test hypotheses about a task and see the estimated impact on the project's "
-        "indicators, without changing the original data.",
-    "Esta simulação não recalcula dependências entre tarefas — ela reflete só o efeito "
-    "direto da tarefa alterada nos indicadores agregados e na data de término do "
-    "projeto (quando ela for a mais tardia).":
-        "This simulation does not recalculate task dependencies — it reflects only the "
-        "direct effect of the changed task on the aggregate indicators and on the "
-        "project's finish date (when it is the latest one).",
+    "Marque as tarefas que você imagina concluir e veja, ao lado, o impacto "
+    "estimado nos indicadores do projeto — sem alterar os dados originais.":
+        "Check the tasks you imagine completing and see, alongside, the estimated "
+        "impact on the project's indicators — without changing the original data.",
+    "Esta simulação não recalcula dependências entre tarefas nem atualiza datas de "
+    "término — ela reflete só o efeito das tarefas marcadas nos indicadores "
+    "agregados de progresso e custo.":
+        "This simulation does not recalculate task dependencies or update finish "
+        "dates — it reflects only the effect of the checked tasks on the aggregate "
+        "progress and cost indicators.",
     "Mostrar apenas tarefas críticas e marcos não concluídos": "Show only critical tasks and unfinished milestones",
-    "Escolha uma tarefa": "Choose a task",
-    "% Concluído hipotético": "Hypothetical % Complete",
-    "Ajuste no término (dias)": "Finish date adjustment (days)",
-    "Indicador": "Indicator",
-    "Atual": "Current",
-    "Simulado": "Simulated",
-    "Diferença": "Difference",
+    "Concluir (100%)": "Complete (100%)",
+    "Impacto estimado": "Estimated impact",
     "Forecast Término": "Finish Forecast",
-    "Envie um cronograma com pelo menos uma tarefa para simular cenários.":
-        "Upload a schedule with at least one task to simulate scenarios.",
+    "Marcar tarefas como concluídas não altera as datas de término — este "
+    "indicador só muda se você também ajustar o cronograma no MS Project.":
+        "Marking tasks as complete does not change finish dates — this indicator "
+        "only changes if you also adjust the schedule in MS Project.",
     "Nenhuma tarefa encontrada com esse filtro.": "No task found with this filter.",
+    "Não há tarefas pendentes para simular — o projeto já está 100% concluído.":
+        "There are no pending tasks to simulate — the project is already 100% complete.",
 
     # --- Portfólio ---
     "Portfólio de Projetos": "Project Portfolio",

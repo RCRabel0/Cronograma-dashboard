@@ -24,7 +24,7 @@ from cronograma.metricas import (
     formatar_valor,
     gerar_percepcoes,
     gerar_recomendacoes,
-    simular_alteracao_tarefa,
+    simular_conclusao_tarefas,
 )
 from cronograma.portfolio import (
     calcular_indicadores_portfolio as _calcular_indicadores_portfolio_impl,
@@ -732,8 +732,8 @@ with aba_simulacao:
     st.subheader(t('Simulação "e se"', idioma))
     st.caption(
         t(
-            "Teste hipóteses sobre uma tarefa e veja o impacto estimado nos indicadores do "
-            "projeto, sem alterar os dados originais.",
+            "Marque as tarefas que você imagina concluir e veja, ao lado, o impacto "
+            "estimado nos indicadores do projeto — sem alterar os dados originais.",
             idioma,
         )
     )
@@ -742,81 +742,93 @@ with aba_simulacao:
         t("Mostrar apenas tarefas críticas e marcos não concluídos", idioma),
         key=f"sim_filtro_{nome_projeto_atual}",
     )
+    tarefas_nao_concluidas_sim = [tarefa_ for tarefa_ in projeto.tarefas_detalhe if tarefa_.percentual_concluido < 100]
     if somente_criticas_marcos_sim:
-        tarefas_simulaveis = [
-            tarefa_ for tarefa_ in projeto.tarefas_detalhe
-            if tarefa_.critica or (tarefa_.marco and tarefa_.percentual_concluido < 100)
-        ]
+        tarefas_simulaveis = [tarefa_ for tarefa_ in tarefas_nao_concluidas_sim if tarefa_.critica or tarefa_.marco]
     else:
-        tarefas_simulaveis = [tarefa_ for tarefa_ in projeto.tarefas_detalhe if not tarefa_.marco]
+        tarefas_simulaveis = tarefas_nao_concluidas_sim
 
     if not tarefas_simulaveis:
-        st.info(t("Nenhuma tarefa encontrada com esse filtro.", idioma) if somente_criticas_marcos_sim else t("Envie um cronograma com pelo menos uma tarefa para simular cenários.", idioma))
+        st.info(
+            t("Nenhuma tarefa encontrada com esse filtro.", idioma) if somente_criticas_marcos_sim
+            else t("Não há tarefas pendentes para simular — o projeto já está 100% concluído.", idioma)
+        )
     else:
-        nomes_tarefas_simulaveis = [tarefa_.nome for tarefa_ in tarefas_simulaveis]
-        # Por padrão, sugere uma tarefa ainda não concluída — mais útil para simular
-        # de cara do que uma tarefa 100% concluída, onde não há nada a testar.
-        indice_padrao_sim = next(
-            (i for i, tarefa_ in enumerate(tarefas_simulaveis) if tarefa_.percentual_concluido < 100), 0
-        )
-        nome_tarefa_escolhida = st.selectbox(
-            t("Escolha uma tarefa", idioma), nomes_tarefas_simulaveis, index=indice_padrao_sim,
-            key=f"sim_tarefa_{nome_projeto_atual}",
-        )
-        tarefa_selecionada = next(t_ for t_ in tarefas_simulaveis if t_.nome == nome_tarefa_escolhida)
+        col_lista_sim, col_impacto_sim = st.columns([3, 2])
 
-        col_pct_sim, col_dias_sim = st.columns(2)
-        novo_percentual_sim = col_pct_sim.slider(
-            t("% Concluído hipotético", idioma), 0, 100, round(tarefa_selecionada.percentual_concluido),
-            key=f"sim_pct_{nome_projeto_atual}_{tarefa_selecionada.uid}",
-        )
-        ajuste_dias_sim = col_dias_sim.slider(
-            t("Ajuste no término (dias)", idioma), -60, 60, 0,
-            key=f"sim_dias_{nome_projeto_atual}_{tarefa_selecionada.uid}",
-        )
+        with col_lista_sim:
+            df_tarefas_sim = pd.DataFrame(
+                {
+                    "concluir": [False] * len(tarefas_simulaveis),
+                    "tarefa": [tarefa_.nome for tarefa_ in tarefas_simulaveis],
+                    "critica": [t("Sim", idioma) if tarefa_.critica else t("Não", idioma) for tarefa_ in tarefas_simulaveis],
+                    "percentual": [tarefa_.percentual_concluido for tarefa_ in tarefas_simulaveis],
+                }
+            )
+            tarefas_editadas_sim = st.data_editor(
+                df_tarefas_sim,
+                key=f"sim_tabela_{nome_projeto_atual}_{somente_criticas_marcos_sim}",
+                hide_index=True,
+                width="stretch",
+                disabled=["tarefa", "critica", "percentual"],
+                column_config={
+                    "concluir": st.column_config.CheckboxColumn(t("Concluir (100%)", idioma)),
+                    "tarefa": st.column_config.TextColumn(t("Tarefa", idioma)),
+                    "critica": st.column_config.TextColumn(t("Crítica", idioma)),
+                    "percentual": st.column_config.NumberColumn(t("% Concluído", idioma), format="%.0f%%"),
+                },
+            )
+            uids_selecionados_sim = [
+                tarefas_simulaveis[i].uid
+                for i, marcado in enumerate(tarefas_editadas_sim["concluir"])
+                if marcado
+            ]
 
-        projeto_simulado = simular_alteracao_tarefa(
-            projeto, tarefa_selecionada.uid,
-            novo_percentual=float(novo_percentual_sim), ajuste_dias_termino=ajuste_dias_sim,
-        )
+        projeto_simulado = simular_conclusao_tarefas(projeto, uids_selecionados_sim)
         indicadores_sim = calcular_indicadores(projeto_simulado, data_status, metodo_peso)
 
-        col_sim1, col_sim2, col_sim3, col_sim4 = st.columns(4)
-        col_sim1.metric(
-            t("% Concluído", idioma), f"{indicadores_sim.percentual_concluido:.1f}%",
-            delta=f"{indicadores_sim.percentual_concluido - indicadores.percentual_concluido:+.1f} p.p.",
-        )
-        col_sim2.metric(
-            "SPI",
-            f"{indicadores_sim.spi:.2f}" if indicadores_sim.spi is not None else t("N/D", idioma),
-            delta=(
-                f"{indicadores_sim.spi - indicadores.spi:+.2f}"
-                if indicadores_sim.spi is not None and indicadores.spi is not None else None
-            ),
-        )
-        col_sim3.metric(
-            "CPI",
-            f"{indicadores_sim.cpi:.2f}" if indicadores_sim.cpi is not None else t("N/D", idioma),
-            delta=(
-                f"{indicadores_sim.cpi - indicadores.cpi:+.2f}"
-                if indicadores_sim.cpi is not None and indicadores.cpi is not None else None
-            ),
-        )
-        col_sim4.metric(
-            t("Forecast Término", idioma),
-            formatar_data(indicadores_sim.termino_projetado, idioma) if indicadores_sim.termino_projetado else t("N/D", idioma),
-            delta=(
-                f"{(indicadores_sim.termino_projetado - indicadores.termino_projetado).days:+d}"
-                if indicadores_sim.termino_projetado and indicadores.termino_projetado else None
-            ),
-            delta_color="inverse",
-        )
+        with col_impacto_sim:
+            st.markdown(f"**{t('Impacto estimado', idioma)}**")
+            st.metric(
+                t("% Concluído", idioma), f"{indicadores_sim.percentual_concluido:.1f}%",
+                delta=f"{indicadores_sim.percentual_concluido - indicadores.percentual_concluido:+.1f} p.p.",
+            )
+            st.metric(
+                "SPI",
+                f"{indicadores_sim.spi:.2f}" if indicadores_sim.spi is not None else t("N/D", idioma),
+                delta=(
+                    f"{indicadores_sim.spi - indicadores.spi:+.2f}"
+                    if indicadores_sim.spi is not None and indicadores.spi is not None else None
+                ),
+            )
+            st.metric(
+                "CPI",
+                f"{indicadores_sim.cpi:.2f}" if indicadores_sim.cpi is not None else t("N/D", idioma),
+                delta=(
+                    f"{indicadores_sim.cpi - indicadores.cpi:+.2f}"
+                    if indicadores_sim.cpi is not None and indicadores.cpi is not None else None
+                ),
+            )
+            st.metric(
+                t("Forecast Término", idioma),
+                formatar_data(indicadores_sim.termino_projetado, idioma) if indicadores_sim.termino_projetado else t("N/D", idioma),
+                delta=(
+                    f"{(indicadores_sim.termino_projetado - indicadores.termino_projetado).days:+d}"
+                    if indicadores_sim.termino_projetado and indicadores.termino_projetado else None
+                ),
+                delta_color="inverse",
+                help=t(
+                    "Marcar tarefas como concluídas não altera as datas de término — este "
+                    "indicador só muda se você também ajustar o cronograma no MS Project.",
+                    idioma,
+                ),
+            )
 
         st.caption(
             t(
-                "Esta simulação não recalcula dependências entre tarefas — ela reflete só o efeito "
-                "direto da tarefa alterada nos indicadores agregados e na data de término do "
-                "projeto (quando ela for a mais tardia).",
+                "Esta simulação não recalcula dependências entre tarefas nem atualiza datas de "
+                "término — ela reflete só o efeito das tarefas marcadas nos indicadores "
+                "agregados de progresso e custo.",
                 idioma,
             )
         )

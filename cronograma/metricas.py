@@ -458,3 +458,17 @@ def simular_alteracao_tarefa(
                 tarefa.termino = tarefa.termino + timedelta(days=ajuste_dias_termino)
             break
     return projeto_simulado
+
+
+def simular_conclusao_tarefas(projeto: Projeto, uids_tarefas: list[str]) -> Projeto:
+    """Retorna uma CÓPIA do projeto com as tarefas informadas marcadas como 100%
+    concluídas, para simular 'e se eu terminasse essas tarefas' sem alterar os dados
+    originais. Mesma limitação de 'simular_alteracao_tarefa': não recalcula dependências
+    entre tarefas nem atualiza datas de término — reflete só o efeito das tarefas
+    marcadas nos indicadores agregados de progresso e custo."""
+    projeto_simulado = copy.deepcopy(projeto)
+    uids_selecionados = set(uids_tarefas)
+    for tarefa in projeto_simulado.tarefas:
+        if tarefa.uid in uids_selecionados:
+            tarefa.percentual_concluido = 100.0
+    return projeto_simulado

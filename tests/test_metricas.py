@@ -10,6 +10,7 @@ from cronograma.metricas import (
     gerar_recomendacoes,
     peso_tarefa,
     simular_alteracao_tarefa,
+    simular_conclusao_tarefas,
 )
 
 DATA_STATUS = date(2026, 7, 24)
@@ -144,3 +145,30 @@ def test_simular_alteracao_tarefa_nao_afeta_original(projeto_com_custo):
     ind_simulado = calcular_indicadores(projeto_simulado, DATA_STATUS)
     assert ind_simulado.ev_total > ind_original.ev_total
     assert ind_simulado.percentual_concluido > ind_original.percentual_concluido
+
+
+def test_simular_conclusao_tarefas_marca_100_por_cento_sem_afetar_original(projeto_com_custo):
+    tarefas_nao_concluidas = [t for t in projeto_com_custo.tarefas_detalhe if t.percentual_concluido < 100]
+    assert len(tarefas_nao_concluidas) >= 2
+    percentuais_originais = [t.percentual_concluido for t in tarefas_nao_concluidas]
+    uids = [t.uid for t in tarefas_nao_concluidas]
+
+    projeto_simulado = simular_conclusao_tarefas(projeto_com_custo, uids)
+
+    # Os dados originais não podem ser alterados.
+    assert [t.percentual_concluido for t in tarefas_nao_concluidas] == percentuais_originais
+
+    tarefas_simuladas = {t.uid: t for t in projeto_simulado.tarefas}
+    assert all(tarefas_simuladas[uid].percentual_concluido == 100.0 for uid in uids)
+
+    ind_original = calcular_indicadores(projeto_com_custo, DATA_STATUS)
+    ind_simulado = calcular_indicadores(projeto_simulado, DATA_STATUS)
+    assert ind_simulado.percentual_concluido > ind_original.percentual_concluido
+    assert ind_simulado.spi > ind_original.spi
+
+
+def test_simular_conclusao_tarefas_lista_vazia_nao_muda_indicadores(projeto_com_custo):
+    projeto_simulado = simular_conclusao_tarefas(projeto_com_custo, [])
+    ind_original = calcular_indicadores(projeto_com_custo, DATA_STATUS)
+    ind_simulado = calcular_indicadores(projeto_simulado, DATA_STATUS)
+    assert ind_simulado.percentual_concluido == pytest.approx(ind_original.percentual_concluido)

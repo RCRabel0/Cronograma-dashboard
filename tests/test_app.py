@@ -72,8 +72,9 @@ def test_aba_status_reuniao(app):
 def test_aba_simulacao(app):
     _upload(app, "exemplo.xml", _ler(RAIZ / "exemplo_cronograma.xml"))
     aba = app.tabs[2]
-    assert aba.selectbox
-    assert len(aba.slider) == 2
+    assert aba.dataframe  # a tabela de tarefas com a coluna de checkbox "Concluir (100%)"
+    colunas = aba.dataframe[0].value.columns
+    assert {"concluir", "tarefa", "critica", "percentual"} <= set(colunas)
     rotulos_metricas = {m.label for m in aba.metric}
     assert {"% Concluído", "SPI", "CPI", "Forecast Término"} <= rotulos_metricas
 
@@ -81,33 +82,38 @@ def test_aba_simulacao(app):
 def test_simulacao_filtro_criticas_e_marcos(app):
     _upload(app, "exemplo.xml", _ler(RAIZ / "exemplo_cronograma.xml"))
     aba = app.tabs[2]
-    # Sem o filtro: marcos ficam de fora e tarefas não críticas aparecem normalmente.
-    opcoes_sem_filtro = aba.selectbox[0].options
-    assert "Testes de Aceitação" in opcoes_sem_filtro
-    assert "Go-Live" not in opcoes_sem_filtro
+    # Sem o filtro: todas as tarefas não concluídas aparecem, inclusive marcos e não críticas.
+    tarefas_sem_filtro = list(aba.dataframe[0].value["tarefa"])
+    assert "Testes de Aceitação" in tarefas_sem_filtro
+    assert "Go-Live" in tarefas_sem_filtro
 
     aba.checkbox[0].set_value(True).run(timeout=TIMEOUT)
     assert not app.exception
 
-    # Com o filtro: só tarefas críticas e marcos não concluídos aparecem.
+    # Com o filtro: só tarefas críticas e marcos permanecem ('Testes de Aceitação' não é
+    # crítica nem marco, então some da lista); 'Go-Live' (marco) continua aparecendo.
     aba_filtrada = app.tabs[2]
-    opcoes_com_filtro = aba_filtrada.selectbox[0].options
-    assert "Go-Live" in opcoes_com_filtro
-    assert "Testes de Aceitação" not in opcoes_com_filtro
+    tarefas_com_filtro = list(aba_filtrada.dataframe[0].value["tarefa"])
+    assert "Go-Live" in tarefas_com_filtro
+    assert "Testes de Aceitação" not in tarefas_com_filtro
 
 
-def test_simulacao_100_por_cento_aumenta_percentual_concluido(app):
+def test_simulacao_marcar_tarefa_concluida_aumenta_percentual(app):
     _upload(app, "exemplo.xml", _ler(RAIZ / "exemplo_cronograma.xml"))
     aba = app.tabs[2]
-    # 'Testes de Aceitação' está 0% concluída no exemplo — ponto de partida garantido
-    # para o slider de 100% realmente mudar algo (o primeiro item da lista já está 100%).
-    aba.selectbox[0].set_value("Testes de Aceitação").run(timeout=TIMEOUT)
-    assert not app.exception
-
-    aba = app.tabs[2]
+    df_tarefas = aba.dataframe[0].value
+    # 'Testes de Aceitação' está 0% concluída no exemplo — marcar como concluída
+    # garante uma mudança real no % Concluído do projeto.
+    indice_testes = int(df_tarefas.index[df_tarefas["tarefa"] == "Testes de Aceitação"][0])
     percentual_antes = next(m for m in aba.metric if m.label == "% Concluído").value
 
-    aba.slider[0].set_value(100).run(timeout=TIMEOUT)
+    chave_editor = aba.dataframe[0].key
+    app.session_state[chave_editor] = {
+        "edited_rows": {indice_testes: {"concluir": True}},
+        "added_rows": [],
+        "deleted_rows": [],
+    }
+    app.run(timeout=TIMEOUT)
     assert not app.exception
 
     aba_depois = app.tabs[2]
