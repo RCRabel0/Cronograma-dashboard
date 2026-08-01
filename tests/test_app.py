@@ -56,11 +56,45 @@ def test_aba_status_reuniao(app):
     aba = app.tabs[1]
     rotulos_metricas = {m.label for m in aba.metric}
     assert {"% Concluído", "SPI", "CPI", "Atraso", "Críticas Atrasadas"} <= rotulos_metricas
+    assert {"Otimista", "Realista", "Pessimista"} <= rotulos_metricas
     textos_markdown = " ".join(m.value for m in aba.markdown)
     assert "riscos" in textos_markdown.lower()
     assert "marcos" in textos_markdown.lower()
+    assert "recomendações" in textos_markdown.lower()
+    assert "matriz de risco" in textos_markdown.lower()
+    # Este cronograma tem tarefas críticas atrasadas, então pelo menos uma recomendação
+    # (renderizada como st.info) deve aparecer.
+    assert aba.info
     rotulos_botoes = [db.label for db in aba.download_button]
     assert any("Status de Reunião" in r and "PDF" in r for r in rotulos_botoes)
+
+
+def test_aba_simulacao(app):
+    _upload(app, "exemplo.xml", _ler(RAIZ / "exemplo_cronograma.xml"))
+    aba = app.tabs[2]
+    assert aba.selectbox
+    assert len(aba.slider) == 2
+    rotulos_metricas = {m.label for m in aba.metric}
+    assert {"% Concluído", "SPI", "CPI", "Forecast Término"} <= rotulos_metricas
+
+
+def test_simulacao_100_por_cento_aumenta_percentual_concluido(app):
+    _upload(app, "exemplo.xml", _ler(RAIZ / "exemplo_cronograma.xml"))
+    aba = app.tabs[2]
+    # 'Testes de Aceitação' está 0% concluída no exemplo — ponto de partida garantido
+    # para o slider de 100% realmente mudar algo (o primeiro item da lista já está 100%).
+    aba.selectbox[0].set_value("Testes de Aceitação").run(timeout=TIMEOUT)
+    assert not app.exception
+
+    aba = app.tabs[2]
+    percentual_antes = next(m for m in aba.metric if m.label == "% Concluído").value
+
+    aba.slider[0].set_value(100).run(timeout=TIMEOUT)
+    assert not app.exception
+
+    aba_depois = app.tabs[2]
+    percentual_depois = next(m for m in aba_depois.metric if m.label == "% Concluído").value
+    assert percentual_depois != percentual_antes
 
 
 def test_seletor_peso_editado(app):

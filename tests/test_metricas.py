@@ -2,7 +2,15 @@ from datetime import date
 
 import pytest
 
-from cronograma.metricas import calcular_indicadores, gerar_percepcoes, peso_tarefa
+from cronograma.metricas import (
+    avaliar_riscos_tarefas,
+    calcular_faixa_previsao_termino,
+    calcular_indicadores,
+    gerar_percepcoes,
+    gerar_recomendacoes,
+    peso_tarefa,
+    simular_alteracao_tarefa,
+)
 
 DATA_STATUS = date(2026, 7, 24)
 
@@ -57,3 +65,82 @@ def test_percepcoes_ingles(projeto_com_custo):
     percepcoes_en = gerar_percepcoes(projeto_com_custo, ind, idioma="en")
     textos = " ".join(texto for _, texto in percepcoes_en)
     assert "project" in textos.lower()
+
+
+def test_recomendacoes_mencionam_tarefa_critica_atrasada(projeto_com_custo):
+    ind = calcular_indicadores(projeto_com_custo, DATA_STATUS)
+    recomendacoes = gerar_recomendacoes(projeto_com_custo, ind, idioma="pt")
+    assert recomendacoes
+    assert all(isinstance(r, str) and r for r in recomendacoes)
+    # Este cronograma tem tarefas críticas atrasadas, então a recomendação deve
+    # citar pelo menos uma delas nominalmente (não só descrever o problema).
+    nomes_criticas_atrasadas = {
+        t.nome for t in projeto_com_custo.tarefas_detalhe if t.critica and t.atrasada
+    }
+    assert any(nome in r for r in recomendacoes for nome in nomes_criticas_atrasadas)
+
+
+def test_recomendacoes_ingles(projeto_com_custo):
+    ind = calcular_indicadores(projeto_com_custo, DATA_STATUS)
+    recomendacoes_en = gerar_recomendacoes(projeto_com_custo, ind, idioma="en")
+    assert recomendacoes_en
+    assert recomendacoes_en != gerar_recomendacoes(projeto_com_custo, ind, idioma="pt")
+
+
+def test_recomendacoes_sem_problemas_da_mensagem_neutra():
+    from cronograma.metricas import Indicadores
+
+    ind_ok = Indicadores(
+        unidade="R$", pv_total=100, ev_total=100, ac_total=100, spi=1.0, cpi=1.0,
+        percentual_concluido=100.0, variacao_custo=0, variacao_custo_pct=0,
+        variacao_prazo=0, variacao_prazo_pct=0, atraso_dias=0, custo_previsto_total=100,
+        tarefas_criticas_atrasadas=0, tarefas_atrasadas=0, total_tarefas=5,
+    )
+
+    class ProjetoVazio:
+        tarefas_detalhe = []
+
+    recomendacoes = gerar_recomendacoes(ProjetoVazio(), ind_ok, idioma="pt")
+    assert len(recomendacoes) == 1
+    assert "nenhuma ação urgente" in recomendacoes[0].lower()
+
+
+def test_faixa_previsao_termino_ordem_cronologica(projeto_com_custo):
+    ind = calcular_indicadores(projeto_com_custo, DATA_STATUS)
+    faixa = calcular_faixa_previsao_termino(ind, DATA_STATUS)
+    assert faixa.otimista is not None
+    assert faixa.realista is not None
+    assert faixa.pessimista is not None
+    assert faixa.otimista == ind.termino_planejado
+    assert faixa.realista == ind.termino_projetado
+    # SPI < 1 neste cronograma: o pessimista deve prever ainda mais atraso que o realista.
+    assert faixa.pessimista >= faixa.realista
+
+
+def test_avaliar_riscos_tarefas_ordenado_por_severidade(projeto_com_custo):
+    ind = calcular_indicadores(projeto_com_custo, DATA_STATUS)
+    riscos = avaliar_riscos_tarefas(projeto_com_custo)
+    assert len(riscos) == ind.tarefas_atrasadas
+    severidades = [r["impacto"] * r["probabilidade"] for r in riscos]
+    assert severidades == sorted(severidades, reverse=True)
+    assert all(1 <= r["impacto"] <= 3 and 1 <= r["probabilidade"] <= 3 for r in riscos)
+
+
+def test_simular_alteracao_tarefa_nao_afeta_original(projeto_com_custo):
+    tarefa_alvo = next(
+        t for t in projeto_com_custo.tarefas_detalhe if t.percentual_concluido < 100
+    )
+    percentual_original = tarefa_alvo.percentual_concluido
+
+    projeto_simulado = simular_alteracao_tarefa(
+        projeto_com_custo, tarefa_alvo.uid, novo_percentual=100.0
+    )
+
+    assert tarefa_alvo.percentual_concluido == percentual_original
+    tarefa_simulada = next(t for t in projeto_simulado.tarefas if t.uid == tarefa_alvo.uid)
+    assert tarefa_simulada.percentual_concluido == 100.0
+
+    ind_original = calcular_indicadores(projeto_com_custo, DATA_STATUS)
+    ind_simulado = calcular_indicadores(projeto_simulado, DATA_STATUS)
+    assert ind_simulado.ev_total > ind_original.ev_total
+    assert ind_simulado.percentual_concluido > ind_original.percentual_concluido

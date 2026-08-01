@@ -554,10 +554,14 @@ def gerar_pdf_status_reuniao(
     resultado_checklist: dict,
     periodo_linha_base_ativa_texto: str,
     data_status,
+    recomendacoes: list[str] | None = None,
+    faixa_previsao=None,
 ) -> bytes:
-    """Relatório de uma única página no mesmo formato da aba 'Status de Reunião' da
-    interface (números principais, mini Curva S, riscos, marcos e tarefas mais
-    atrasadas) — pensado para impressão ou compartilhamento rápido em reunião."""
+    """Relatório no mesmo formato da aba 'Status de Reunião' da interface (números
+    principais, faixa de previsão de término, mini Curva S, riscos, marcos, recomendações
+    e tarefas mais atrasadas) — pensado para impressão ou compartilhamento rápido em
+    reunião. Cabe numa única página quando há poucos itens; com mais conteúdo (várias
+    recomendações ou tarefas atrasadas), pode ocupar uma segunda página automaticamente."""
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
         buffer, pagesize=landscape(A4),
@@ -619,7 +623,32 @@ def gerar_pdf_status_reuniao(
         estilo_kpi.append(("BACKGROUND", (col, 0), (col, 0), _cor_cartao(bom)))
     tabela_kpi.setStyle(TableStyle(estilo_kpi))
     elementos.append(tabela_kpi)
-    elementos.append(Spacer(1, 0.55 * cm))
+    elementos.append(Spacer(1, 0.4 * cm))
+
+    if faixa_previsao is not None and faixa_previsao.otimista is not None:
+        celulas_faixa = [
+            Paragraph(
+                f"<font size=12><b>{data:%d/%m/%Y}</b></font><br/><font size=7.5>{rotulo}</font>",
+                estilo_kpi_centro,
+            )
+            for data, rotulo in [
+                (faixa_previsao.otimista, "Otimista (linha de base)"),
+                (faixa_previsao.realista, "Realista (cronograma atual)"),
+                (faixa_previsao.pessimista, "Pessimista (ritmo atual/SPI)"),
+            ]
+        ]
+        tabela_faixa = Table([celulas_faixa], colWidths=[largura_util / 3] * 3)
+        tabela_faixa.setStyle(TableStyle([
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("TOPPADDING", (0, 0), (-1, -1), 6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F4F6F6")),
+            ("LINEBELOW", (0, 0), (-1, -1), 0.5, colors.HexColor("#D5D8DC")),
+            ("LINEABOVE", (0, 0), (-1, -1), 0.5, colors.HexColor("#D5D8DC")),
+        ]))
+        elementos.append(tabela_faixa)
+        elementos.append(Spacer(1, 0.5 * cm))
 
     png_curva = _grafico_curva_s_png(curva_s, indicadores.unidade)
     imagem_curva = _imagem_proporcional(png_curva, largura_util / cm * 0.55, 9)
@@ -650,6 +679,12 @@ def gerar_pdf_status_reuniao(
     ]))
     elementos.append(tabela_duas_colunas)
     elementos.append(Spacer(1, 0.5 * cm))
+
+    if recomendacoes:
+        elementos.extend(_titulo_secao("Recomendações", estilo_titulo_secao))
+        for texto in recomendacoes:
+            elementos.append(Paragraph(f"• {texto}", estilo_lista))
+        elementos.append(Spacer(1, 0.5 * cm))
 
     elementos.extend(
         _titulo_secao(f"Tarefas mais atrasadas ({indicadores.tarefas_atrasadas})", estilo_titulo_secao)

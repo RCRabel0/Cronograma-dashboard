@@ -1,6 +1,7 @@
 import os
 import smtplib
 import tempfile
+from collections import defaultdict
 from datetime import date, datetime
 from email.mime.text import MIMEText
 
@@ -16,10 +17,14 @@ from cronograma.i18n import formatar_data, formato_coluna_data, t, tf
 from cronograma.leitor_mpp import MpxjIndisponivelError, ler_mpp
 from cronograma.leitor_xml import ArquivoInvalidoError, ler_xml
 from cronograma.metricas import (
+    avaliar_riscos_tarefas,
+    calcular_faixa_previsao_termino,
     calcular_indicadores as _calcular_indicadores_impl,
     dias_atraso_tarefa,
     formatar_valor,
     gerar_percepcoes,
+    gerar_recomendacoes,
+    simular_alteracao_tarefa,
 )
 from cronograma.portfolio import (
     calcular_indicadores_portfolio as _calcular_indicadores_portfolio_impl,
@@ -70,10 +75,12 @@ def avaliar_checklist(projeto, indicadores, idioma="pt"):
 def gerar_pdf_status_reuniao(
     projeto, indicadores, curva_s, riscos, marcos_pendentes, tarefas_atrasadas_top,
     resultado_checklist, periodo_linha_base_ativa_texto, data_status,
+    recomendacoes=None, faixa_previsao=None,
 ):
     return _gerar_pdf_status_reuniao_impl(
         projeto, indicadores, curva_s, riscos, marcos_pendentes, tarefas_atrasadas_top,
         resultado_checklist, periodo_linha_base_ativa_texto, data_status,
+        recomendacoes, faixa_previsao,
     )
 
 
@@ -356,6 +363,7 @@ else:
 _nomes_abas = [
     t("📊 Portfólio", idioma),
     t("🖥️ Status de Reunião", idioma),
+    t("🎲 Simulação", idioma),
     t("📈 Resumo", idioma),
     t("📉 Curva S", idioma),
     t("✅ Tarefas", idioma),
@@ -365,7 +373,7 @@ _nomes_abas = [
     t("📤 Exportar", idioma),
 ]
 (
-    aba_portfolio, aba_status, aba_resumo, aba_curva, aba_tarefas, aba_gantt,
+    aba_portfolio, aba_status, aba_simulacao, aba_resumo, aba_curva, aba_tarefas, aba_gantt,
     aba_checklist, aba_recursos, aba_exportar,
 ) = st.tabs(_nomes_abas)
 
@@ -624,13 +632,93 @@ with aba_status:
         st.success(t("Nenhuma tarefa está atrasada em relação à linha de base.", idioma))
 
     st.divider()
+    st.markdown(f"**{t('🎯 Recomendações', idioma)}**")
+    recomendacoes = gerar_recomendacoes(projeto, indicadores, idioma=idioma)
+    for texto_recomendacao in recomendacoes:
+        st.info(texto_recomendacao, icon="🎯")
+
+    st.divider()
+    st.markdown(f"**{t('📅 Faixa de Previsão de Término', idioma)}**")
+    faixa_previsao = calcular_faixa_previsao_termino(indicadores, data_status)
+    if faixa_previsao.otimista is None:
+        st.caption(t("Sem dados suficientes de linha de base para estimar uma faixa de previsão.", idioma))
+    else:
+        col_otimista, col_realista, col_pessimista = st.columns(3)
+        col_otimista.metric(
+            t("Otimista", idioma), formatar_data(faixa_previsao.otimista, idioma),
+            help=t("Linha de base original", idioma),
+        )
+        dias_ot_re = (faixa_previsao.realista - faixa_previsao.otimista).days
+        col_realista.metric(
+            t("Realista", idioma), formatar_data(faixa_previsao.realista, idioma),
+            delta=f"{dias_ot_re:+d}" if dias_ot_re else None, delta_color="inverse",
+            help=t("Cronograma atual", idioma),
+        )
+        dias_re_pe = (faixa_previsao.pessimista - faixa_previsao.realista).days
+        col_pessimista.metric(
+            t("Pessimista", idioma), formatar_data(faixa_previsao.pessimista, idioma),
+            delta=f"{dias_re_pe:+d}" if dias_re_pe else None, delta_color="inverse",
+            help=t("Se o ritmo atual (SPI) continuar", idioma),
+        )
+
+    st.divider()
+    st.markdown(f"**{t('⚠️ Matriz de Risco', idioma)}**")
+    st.caption(
+        t(
+            "Matriz de priorização (probabilidade x impacto) das tarefas atrasadas — heurística "
+            "simples baseada em criticidade e magnitude do atraso, não uma análise de riscos formal.",
+            idioma,
+        )
+    )
+    riscos_matriz = avaliar_riscos_tarefas(projeto)
+    if riscos_matriz:
+        rotulos_nivel = {1: t("Baixo", idioma), 2: t("Médio", idioma), 3: t("Alto", idioma)}
+        grupos_matriz = defaultdict(list)
+        for risco in riscos_matriz:
+            grupos_matriz[(risco["probabilidade"], risco["impacto"])].append(risco)
+
+        fig_risco = go.Figure()
+        for (prob, impacto), grupo in grupos_matriz.items():
+            n_grupo = len(grupo)
+            for indice, risco in enumerate(grupo):
+                offset = (indice - (n_grupo - 1) / 2) * 0.18
+                severidade = risco["impacto"] * risco["probabilidade"]
+                cor = "#C0392B" if severidade >= 6 else ("#E67E22" if severidade >= 3 else "#2E8B57")
+                fig_risco.add_trace(
+                    go.Scatter(
+                        x=[prob + offset], y=[impacto], mode="markers+text",
+                        text=[risco["tarefa"]], textposition="top center", textfont=dict(size=10),
+                        marker=dict(size=14, color=cor), showlegend=False, hoverinfo="text",
+                        hovertext=tf(
+                            "{nome} — {dias} dia(s) de atraso", idioma, nome=risco["tarefa"], dias=risco["atraso_dias"]
+                        ),
+                    )
+                )
+        fig_risco.update_layout(
+            xaxis=dict(
+                title=t("Probabilidade", idioma), tickmode="array", tickvals=[1, 2, 3],
+                ticktext=[rotulos_nivel[1], rotulos_nivel[2], rotulos_nivel[3]], range=[0.4, 3.6],
+            ),
+            yaxis=dict(
+                title=t("Impacto", idioma), tickmode="array", tickvals=[1, 2, 3],
+                ticktext=[rotulos_nivel[1], rotulos_nivel[2], rotulos_nivel[3]], range=[0.4, 3.6],
+            ),
+            height=340, margin=dict(l=10, r=10, t=10, b=10),
+        )
+        st.plotly_chart(fig_risco, width="stretch")
+    else:
+        st.success(t("Nenhuma tarefa atrasada para priorizar no momento.", idioma))
+
+    st.divider()
     # O relatório exportado permanece sempre em português, independente do idioma da interface.
     riscos_exportacao = [
         texto for categoria, texto in gerar_percepcoes(projeto, indicadores, idioma="pt") if categoria == "alerta"
     ][:4]
+    recomendacoes_exportacao = gerar_recomendacoes(projeto, indicadores, idioma="pt")
     pdf_status_bytes = gerar_pdf_status_reuniao(
         projeto, indicadores, curva, riscos_exportacao, marcos_pendentes, piores_atrasadas,
         resultado_checklist_status, periodo_linha_base_ativa(projeto, "pt"), data_status,
+        recomendacoes_exportacao, faixa_previsao,
     )
     st.download_button(
         t("⬇️ Baixar Status de Reunião (PDF)", idioma),
@@ -639,6 +727,88 @@ with aba_status:
         mime="application/pdf",
         width="stretch",
     )
+
+with aba_simulacao:
+    st.subheader(t('Simulação "e se"', idioma))
+    st.caption(
+        t(
+            "Teste hipóteses sobre uma tarefa e veja o impacto estimado nos indicadores do "
+            "projeto, sem alterar os dados originais.",
+            idioma,
+        )
+    )
+
+    tarefas_simulaveis = [tarefa_ for tarefa_ in projeto.tarefas_detalhe if not tarefa_.marco]
+    if not tarefas_simulaveis:
+        st.info(t("Envie um cronograma com pelo menos uma tarefa para simular cenários.", idioma))
+    else:
+        nomes_tarefas_simulaveis = [tarefa_.nome for tarefa_ in tarefas_simulaveis]
+        # Por padrão, sugere uma tarefa ainda não concluída — mais útil para simular
+        # de cara do que uma tarefa 100% concluída, onde não há nada a testar.
+        indice_padrao_sim = next(
+            (i for i, tarefa_ in enumerate(tarefas_simulaveis) if tarefa_.percentual_concluido < 100), 0
+        )
+        nome_tarefa_escolhida = st.selectbox(
+            t("Escolha uma tarefa", idioma), nomes_tarefas_simulaveis, index=indice_padrao_sim,
+            key=f"sim_tarefa_{nome_projeto_atual}",
+        )
+        tarefa_selecionada = next(t_ for t_ in tarefas_simulaveis if t_.nome == nome_tarefa_escolhida)
+
+        col_pct_sim, col_dias_sim = st.columns(2)
+        novo_percentual_sim = col_pct_sim.slider(
+            t("% Concluído hipotético", idioma), 0, 100, round(tarefa_selecionada.percentual_concluido),
+            key=f"sim_pct_{nome_projeto_atual}_{tarefa_selecionada.uid}",
+        )
+        ajuste_dias_sim = col_dias_sim.slider(
+            t("Ajuste no término (dias)", idioma), -60, 60, 0,
+            key=f"sim_dias_{nome_projeto_atual}_{tarefa_selecionada.uid}",
+        )
+
+        projeto_simulado = simular_alteracao_tarefa(
+            projeto, tarefa_selecionada.uid,
+            novo_percentual=float(novo_percentual_sim), ajuste_dias_termino=ajuste_dias_sim,
+        )
+        indicadores_sim = calcular_indicadores(projeto_simulado, data_status, metodo_peso)
+
+        col_sim1, col_sim2, col_sim3, col_sim4 = st.columns(4)
+        col_sim1.metric(
+            t("% Concluído", idioma), f"{indicadores_sim.percentual_concluido:.1f}%",
+            delta=f"{indicadores_sim.percentual_concluido - indicadores.percentual_concluido:+.1f} p.p.",
+        )
+        col_sim2.metric(
+            "SPI",
+            f"{indicadores_sim.spi:.2f}" if indicadores_sim.spi is not None else t("N/D", idioma),
+            delta=(
+                f"{indicadores_sim.spi - indicadores.spi:+.2f}"
+                if indicadores_sim.spi is not None and indicadores.spi is not None else None
+            ),
+        )
+        col_sim3.metric(
+            "CPI",
+            f"{indicadores_sim.cpi:.2f}" if indicadores_sim.cpi is not None else t("N/D", idioma),
+            delta=(
+                f"{indicadores_sim.cpi - indicadores.cpi:+.2f}"
+                if indicadores_sim.cpi is not None and indicadores.cpi is not None else None
+            ),
+        )
+        col_sim4.metric(
+            t("Forecast Término", idioma),
+            formatar_data(indicadores_sim.termino_projetado, idioma) if indicadores_sim.termino_projetado else t("N/D", idioma),
+            delta=(
+                f"{(indicadores_sim.termino_projetado - indicadores.termino_projetado).days:+d}"
+                if indicadores_sim.termino_projetado and indicadores.termino_projetado else None
+            ),
+            delta_color="inverse",
+        )
+
+        st.caption(
+            t(
+                "Esta simulação não recalcula dependências entre tarefas — ela reflete só o efeito "
+                "direto da tarefa alterada nos indicadores agregados e na data de término do "
+                "projeto (quando ela for a mais tardia).",
+                idioma,
+            )
+        )
 
 with aba_resumo:
     c1, c2 = st.columns(2)

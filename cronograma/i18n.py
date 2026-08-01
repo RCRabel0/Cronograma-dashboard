@@ -90,6 +90,27 @@ TRADUCOES: dict[str, str] = {
     "🚩 Próximos marcos": "🚩 Upcoming milestones",
     "Nenhum marco pendente.": "No pending milestones.",
     "🔻 Tarefas mais atrasadas ({n})": "🔻 Most delayed tasks ({n})",
+    "🎯 Recomendações": "🎯 Recommendations",
+    "📅 Faixa de Previsão de Término": "📅 Finish Forecast Range",
+    "Otimista": "Optimistic",
+    "Realista": "Realistic",
+    "Pessimista": "Pessimistic",
+    "Linha de base original": "Original baseline",
+    "Cronograma atual": "Current schedule",
+    "Se o ritmo atual (SPI) continuar": "If the current pace (SPI) continues",
+    "Sem dados suficientes de linha de base para estimar uma faixa de previsão.":
+        "Not enough baseline data to estimate a forecast range.",
+    "⚠️ Matriz de Risco": "⚠️ Risk Matrix",
+    "Matriz de priorização (probabilidade x impacto) das tarefas atrasadas — heurística "
+    "simples baseada em criticidade e magnitude do atraso, não uma análise de riscos formal.":
+        "Prioritization matrix (probability x impact) of delayed tasks — a simple heuristic "
+        "based on criticality and delay magnitude, not a formal risk analysis.",
+    "Probabilidade": "Probability",
+    "Impacto": "Impact",
+    "Baixo": "Low",
+    "Médio": "Medium",
+    "Alto": "High",
+    "Nenhuma tarefa atrasada para priorizar no momento.": "No delayed tasks to prioritize right now.",
     "**Início:** {v}": "**Start:** {v}",
     "**Término:** {v}": "**Finish:** {v}",
     "**Data de status:** {v}": "**Status date:** {v}",
@@ -108,6 +129,30 @@ TRADUCOES: dict[str, str] = {
     "📋 Checklist de Qualidade": "📋 Quality Checklist",
     "👥 Recursos": "👥 Resources",
     "📤 Exportar": "📤 Export",
+    "🎲 Simulação": "🎲 Simulation",
+
+    # --- Simulação 'e se' ---
+    "Simulação \"e se\"": "\"What if\" simulation",
+    "Teste hipóteses sobre uma tarefa e veja o impacto estimado nos indicadores do projeto, "
+    "sem alterar os dados originais.":
+        "Test hypotheses about a task and see the estimated impact on the project's "
+        "indicators, without changing the original data.",
+    "Esta simulação não recalcula dependências entre tarefas — ela reflete só o efeito "
+    "direto da tarefa alterada nos indicadores agregados e na data de término do "
+    "projeto (quando ela for a mais tardia).":
+        "This simulation does not recalculate task dependencies — it reflects only the "
+        "direct effect of the changed task on the aggregate indicators and on the "
+        "project's finish date (when it is the latest one).",
+    "Escolha uma tarefa": "Choose a task",
+    "% Concluído hipotético": "Hypothetical % Complete",
+    "Ajuste no término (dias)": "Finish date adjustment (days)",
+    "Indicador": "Indicator",
+    "Atual": "Current",
+    "Simulado": "Simulated",
+    "Diferença": "Difference",
+    "Forecast Término": "Finish Forecast",
+    "Envie um cronograma com pelo menos uma tarefa para simular cenários.":
+        "Upload a schedule with at least one task to simulate scenarios.",
 
     # --- Portfólio ---
     "Portfólio de Projetos": "Project Portfolio",
@@ -390,6 +435,37 @@ TRADUCOES: dict[str, str] = {
     "adiantamento": "advance",
     "CPI (índice de custo)": "CPI (cost performance index)",
     "CPI (índice de eficiência de prazo trabalhado)": "CPI (worked-schedule efficiency index)",
+
+    # --- Recomendações (metricas.py) ---
+    "Priorize a tarefa crítica '{nome}': está {dias} dia(s) atrasada e impacta "
+    "diretamente a data final do projeto. Avalie reforçar recursos ou remover "
+    "impedimentos ainda esta semana.":
+        "Prioritize the critical task '{nome}': it is {dias} day(s) delayed and directly "
+        "impacts the project's final date. Consider reinforcing resources or removing "
+        "blockers this week.",
+    "O custo real está significativamente acima do orçado (CPI = {cpi:.2f}). "
+    "Revise o escopo ou renegocie o orçamento antes que o estouro projetado "
+    "({eac}) se confirme.":
+        "Actual cost is significantly above budget (CPI = {cpi:.2f}). Review the scope "
+        "or renegotiate the budget before the projected overrun ({eac}) is confirmed.",
+    "As tarefas estão consumindo bem mais tempo do que o planejado "
+    "(CPI = {cpi:.2f}). Revise as estimativas de duração das próximas atividades.":
+        "Tasks are taking much longer than planned (CPI = {cpi:.2f}). Review the "
+        "duration estimates for the upcoming activities.",
+    "O ritmo de execução está bem abaixo do planejado (SPI = {spi:.2f}). Considere "
+    "replanejar as próximas atividades com uma linha de base realista, em vez de "
+    "manter uma meta que já não é mais alcançável.":
+        "The execution pace is well below plan (SPI = {spi:.2f}). Consider replanning "
+        "the upcoming activities with a realistic baseline, instead of keeping a target "
+        "that is no longer achievable.",
+    "Há tarefas atrasadas, mas nenhuma delas é crítica no momento — ainda dá para "
+    "recuperar o atraso sem afetar a data final, priorizando essas atividades antes "
+    "que se tornem críticas.":
+        "There are delayed tasks, but none of them are critical right now — it's still "
+        "possible to recover the delay without affecting the final date, by prioritizing "
+        "these activities before they become critical.",
+    "Nenhuma ação urgente identificada — continue monitorando os indicadores normalmente.":
+        "No urgent action identified — keep monitoring the indicators as usual.",
 
     # --- Checklist: seções ---
     "1. Estrutura do Cronograma (WBS)": "1. Schedule Structure (WBS)",

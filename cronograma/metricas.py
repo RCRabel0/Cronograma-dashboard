@@ -1,5 +1,6 @@
+import copy
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from typing import Optional
 
 from .i18n import formatar_data, t, tf
@@ -32,6 +33,8 @@ class Indicadores:
     tarefas_criticas_atrasadas: int
     tarefas_atrasadas: int
     total_tarefas: int
+    termino_planejado: date | None = None
+    termino_projetado: date | None = None
 
 
 def formatar_valor(valor: float, unidade: str) -> str:
@@ -155,6 +158,8 @@ def calcular_indicadores(
         tarefas_criticas_atrasadas=len(tarefas_criticas_atrasadas),
         tarefas_atrasadas=len(tarefas_atrasadas),
         total_tarefas=len(tarefas),
+        termino_planejado=termino_planejado,
+        termino_projetado=termino_projetado,
     )
 
 
@@ -309,3 +314,147 @@ def gerar_percepcoes(projeto: Projeto, indicadores: Indicadores, top_n_mudancas:
             )
 
     return percepcoes
+
+
+def gerar_recomendacoes(projeto: Projeto, indicadores: Indicadores, top_n: int = 3, idioma: str = "pt") -> list[str]:
+    """Sugestões de ação concretas (o que fazer), complementando 'gerar_percepcoes' —
+    que só diagnostica o estado do projeto. Cada item já é uma recomendação, não apenas
+    uma observação. Baseado nas mesmas regras (SPI/CPI/criticidade) já usadas nas
+    percepções, mas formulado como ação."""
+    recomendacoes: list[str] = []
+
+    criticas_atrasadas = sorted(
+        [t for t in projeto.tarefas_detalhe if t.critica and t.atrasada],
+        key=dias_atraso_tarefa, reverse=True,
+    )
+    for tarefa in criticas_atrasadas[:top_n]:
+        recomendacoes.append(tf(
+            "Priorize a tarefa crítica '{nome}': está {dias} dia(s) atrasada e impacta "
+            "diretamente a data final do projeto. Avalie reforçar recursos ou remover "
+            "impedimentos ainda esta semana.",
+            idioma, nome=tarefa.nome, dias=dias_atraso_tarefa(tarefa),
+        ))
+
+    if indicadores.cpi is not None and indicadores.cpi < 0.9:
+        eac_texto = (
+            formatar_valor(indicadores.custo_previsto_total, indicadores.unidade)
+            if indicadores.custo_previsto_total else t("N/D", idioma)
+        )
+        if indicadores.unidade == "R$":
+            recomendacoes.append(tf(
+                "O custo real está significativamente acima do orçado (CPI = {cpi:.2f}). "
+                "Revise o escopo ou renegocie o orçamento antes que o estouro projetado "
+                "({eac}) se confirme.",
+                idioma, cpi=indicadores.cpi, eac=eac_texto,
+            ))
+        else:
+            recomendacoes.append(tf(
+                "As tarefas estão consumindo bem mais tempo do que o planejado "
+                "(CPI = {cpi:.2f}). Revise as estimativas de duração das próximas atividades.",
+                idioma, cpi=indicadores.cpi,
+            ))
+
+    if indicadores.spi is not None and indicadores.spi < 0.85:
+        recomendacoes.append(tf(
+            "O ritmo de execução está bem abaixo do planejado (SPI = {spi:.2f}). Considere "
+            "replanejar as próximas atividades com uma linha de base realista, em vez de "
+            "manter uma meta que já não é mais alcançável.",
+            idioma, spi=indicadores.spi,
+        ))
+
+    if indicadores.tarefas_atrasadas > 0 and indicadores.tarefas_criticas_atrasadas == 0:
+        recomendacoes.append(t(
+            "Há tarefas atrasadas, mas nenhuma delas é crítica no momento — ainda dá para "
+            "recuperar o atraso sem afetar a data final, priorizando essas atividades antes "
+            "que se tornem críticas.",
+            idioma,
+        ))
+
+    if not recomendacoes:
+        recomendacoes.append(t(
+            "Nenhuma ação urgente identificada — continue monitorando os indicadores normalmente.",
+            idioma,
+        ))
+
+    return recomendacoes[:top_n] if len(recomendacoes) > top_n else recomendacoes
+
+
+@dataclass
+class FaixaPrevisaoTermino:
+    otimista: date | None
+    realista: date | None
+    pessimista: date | None
+
+
+def calcular_faixa_previsao_termino(indicadores: Indicadores, data_status: date) -> FaixaPrevisaoTermino:
+    """Estima uma faixa de término em vez de uma única data, para apoiar decisões de
+    quando escalar um problema:
+
+    - Otimista: a data da linha de base original — o cenário 'se nada tivesse saído do
+      combinado', usado como referência.
+    - Realista: a data projetada pelo cronograma atual, que já reflete atrasos e
+      replanejamentos conhecidos.
+    - Pessimista: se o trabalho restante continuar no mesmo ritmo de desempenho atual
+      (SPI) do que já foi observado, em vez de melhorar — técnica de projeção por SPI
+      (Earned Schedule), aplicada só sobre os dias que ainda faltam.
+    """
+    if indicadores.termino_planejado is None or indicadores.termino_projetado is None:
+        return FaixaPrevisaoTermino(otimista=None, realista=None, pessimista=None)
+
+    otimista = indicadores.termino_planejado
+    realista = indicadores.termino_projetado
+
+    dias_restantes = (realista - data_status).days
+    if indicadores.spi and indicadores.spi > 0 and indicadores.spi < 1 and dias_restantes > 0:
+        dias_extra = dias_restantes * (1 / indicadores.spi - 1)
+        pessimista = realista + timedelta(days=round(dias_extra))
+    else:
+        pessimista = realista
+
+    return FaixaPrevisaoTermino(otimista=otimista, realista=realista, pessimista=pessimista)
+
+
+def avaliar_riscos_tarefas(projeto: Projeto) -> list[dict]:
+    """Monta uma matriz de priorização (probabilidade x impacto) a partir das tarefas
+    atrasadas. É uma heurística simples baseada em criticidade e magnitude do atraso —
+    não substitui uma análise de riscos formal, mas ajuda a priorizar o que merece
+    atenção da liderança primeiro. Impacto e probabilidade vão de 1 (baixo) a 3 (alto)."""
+    riscos = []
+    for tarefa in projeto.tarefas_detalhe:
+        if not tarefa.atrasada:
+            continue
+        dias = dias_atraso_tarefa(tarefa)
+        impacto = 3 if tarefa.critica else (2 if dias >= 5 else 1)
+        probabilidade = 3 if dias >= 10 else (2 if dias >= 3 else 1)
+        riscos.append({
+            "tarefa": tarefa.nome,
+            "critica": tarefa.critica,
+            "atraso_dias": dias,
+            "impacto": impacto,
+            "probabilidade": probabilidade,
+        })
+    riscos.sort(key=lambda r: r["impacto"] * r["probabilidade"], reverse=True)
+    return riscos
+
+
+def simular_alteracao_tarefa(
+    projeto: Projeto,
+    tarefa_uid: str,
+    novo_percentual: float | None = None,
+    ajuste_dias_termino: int = 0,
+) -> Projeto:
+    """Retorna uma CÓPIA do projeto com uma tarefa alterada hipoteticamente (% concluído
+    e/ou deslocamento do término), para simular 'e se' sem alterar os dados originais.
+
+    Limitação conhecida: não recalcula dependências entre tarefas (não há motor de
+    CPM neste programa) — reflete só o efeito direto da tarefa alterada nos indicadores
+    agregados e na data de término do projeto (quando ela for a mais tardia)."""
+    projeto_simulado = copy.deepcopy(projeto)
+    for tarefa in projeto_simulado.tarefas:
+        if tarefa.uid == tarefa_uid:
+            if novo_percentual is not None:
+                tarefa.percentual_concluido = novo_percentual
+            if ajuste_dias_termino and tarefa.termino is not None:
+                tarefa.termino = tarefa.termino + timedelta(days=ajuste_dias_termino)
+            break
+    return projeto_simulado
