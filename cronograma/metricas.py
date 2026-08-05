@@ -3,6 +3,9 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Optional
 
+import numpy as np
+import pandas as pd
+
 from .i18n import formatar_data, t, tf
 from .modelos import Projeto, Tarefa
 
@@ -515,3 +518,288 @@ def gerar_observacoes_simulacao(
             )
         observacoes.append(texto)
     return observacoes
+
+
+@dataclass
+class ResultadoMonteCarlo:
+    datas_simuladas: np.ndarray  # datetime64[ns], uma por rodada de simulação
+    percentis: dict[int, date]   # ex.: {10: date(...), 50: date(...), 80: date(...), 90: date(...)}
+    n_tarefas_simuladas: int
+
+
+_NS_POR_DIA = 24 * 60 * 60 * 1_000_000_000
+
+
+def _ordenar_topologicamente(tarefas: list[Tarefa]) -> list[str]:
+    """Ordena as tarefas por dependência (predecessora antes de sucessora), via
+    Kahn. Predecessoras que apontam para um uid fora do projeto (ou não presente na
+    lista, ex.: tarefas-resumo) são ignoradas. Se houver um ciclo (dado inválido, não
+    deveria acontecer num cronograma exportado corretamente), as tarefas do ciclo
+    entram no fim, sem respeitar suas dependências — evita loop infinito."""
+    uids = {t.uid for t in tarefas}
+    sucessoras_de: dict[str, list[str]] = {uid: [] for uid in uids}
+    grau_entrada: dict[str, int] = {uid: 0 for uid in uids}
+    for tarefa in tarefas:
+        preds_validas = {d.predecessora_uid for d in tarefa.dependencias if d.predecessora_uid in uids}
+        grau_entrada[tarefa.uid] = len(preds_validas)
+        for uid_pred in preds_validas:
+            sucessoras_de[uid_pred].append(tarefa.uid)
+
+    fila = [uid for uid, grau in grau_entrada.items() if grau == 0]
+    ordem: list[str] = []
+    grau_restante = dict(grau_entrada)
+    while fila:
+        uid = fila.pop()
+        ordem.append(uid)
+        for uid_suc in sucessoras_de[uid]:
+            grau_restante[uid_suc] -= 1
+            if grau_restante[uid_suc] == 0:
+                fila.append(uid_suc)
+
+    if len(ordem) < len(uids):
+        vistos = set(ordem)
+        ordem.extend(uid for uid in uids if uid not in vistos)
+    return ordem
+
+
+def simular_monte_carlo_termino(
+    projeto: Projeto,
+    data_status: date,
+    n_simulacoes: int = 2000,
+    fator_otimista: float = 0.8,
+    fator_pessimista: float = 1.3,
+    semente: int = 42,
+) -> Optional[ResultadoMonteCarlo]:
+    """Simulação de Monte Carlo da data de término do projeto — em vez de uma única
+    previsão (ou 3 pontos fixos), roda `n_simulacoes` cenários variando a duração
+    restante de cada tarefa ainda não concluída (distribuição triangular: otimista =
+    `fator_otimista` x duração planejada, pessimista = `fator_pessimista` x) e propaga
+    o efeito pelas dependências entre tarefas (Término-Início, Início-Início,
+    Término-Término, Início-Término), tarefa por tarefa, na ordem topológica do grafo
+    de dependências. Tarefas já 100% concluídas usam sua data real de término como
+    âncora fixa (não são sorteadas). O resultado é a distribuição de datas de término
+    do projeto entre todos os cenários — dela se lê, por exemplo, 'há 80% de chance de
+    terminar até {P80}'.
+
+    Limitação: como o programa não tem um motor de CPM completo, tarefas sem nenhuma
+    predecessora mantêm a data de início atualmente agendada como âncora (não são
+    reposicionadas) — só a duração é incerta."""
+    tarefas = [t for t in projeto.tarefas_detalhe if t.termino is not None]
+    if not tarefas:
+        return None
+
+    tarefas_por_uid = {t.uid: t for t in tarefas}
+    ordem = _ordenar_topologicamente(tarefas)
+
+    rng = np.random.default_rng(semente)
+    ts_status = pd.Timestamp(data_status).value
+
+    inicio_sim: dict[str, np.ndarray] = {}
+    termino_sim: dict[str, np.ndarray] = {}
+
+    for uid in ordem:
+        tarefa = tarefas_por_uid[uid]
+
+        if tarefa.percentual_concluido >= 100:
+            termino_fixo = tarefa.termino_real or tarefa.termino
+            inicio_fixo = tarefa.inicio_real or tarefa.inicio or termino_fixo
+            inicio_sim[uid] = np.full(n_simulacoes, pd.Timestamp(inicio_fixo).value, dtype="int64")
+            termino_sim[uid] = np.full(n_simulacoes, pd.Timestamp(termino_fixo).value, dtype="int64")
+            continue
+
+        ancora_inicio = tarefa.inicio_real or tarefa.inicio or data_status
+        dias_restantes = max((tarefa.termino - max(ancora_inicio, data_status)).days, 1)
+
+        preds_validas = [d for d in tarefa.dependencias if d.predecessora_uid in tarefas_por_uid]
+        piso = max(pd.Timestamp(max(ancora_inicio, data_status)).value, ts_status)
+        if preds_validas:
+            candidatos = []
+            deslocamento_ns = dias_restantes * _NS_POR_DIA
+            for dep in preds_validas:
+                p_inicio = inicio_sim[dep.predecessora_uid]
+                p_termino = termino_sim[dep.predecessora_uid]
+                if dep.tipo == 0:      # Término-Término
+                    candidatos.append(p_termino - deslocamento_ns)
+                elif dep.tipo == 2:    # Início-Término
+                    candidatos.append(p_inicio - deslocamento_ns)
+                elif dep.tipo == 3:    # Início-Início
+                    candidatos.append(p_inicio)
+                else:                  # Término-Início (padrão/mais comum)
+                    candidatos.append(p_termino)
+            inicio_efetivo = np.maximum(np.maximum.reduce(candidatos), piso)
+        else:
+            inicio_efetivo = np.full(n_simulacoes, piso, dtype="int64")
+
+        # min/max sempre envolvem a moda (dias_restantes), mesmo que os fatores
+        # informados estejam invertidos ou ambos do mesmo lado de 1.0 — a
+        # distribuição triangular do numpy exige left <= mode <= right.
+        minimo_dias = min(dias_restantes * fator_otimista, dias_restantes)
+        maximo_dias = max(dias_restantes * fator_pessimista, dias_restantes)
+        if np.isclose(minimo_dias, maximo_dias):
+            # Sem variabilidade real (ex.: otimista == pessimista) — a triangular do
+            # numpy exige limites estritamente diferentes; usa a duração fixa.
+            duracao_amostrada = np.full(n_simulacoes, dias_restantes, dtype="float64")
+        else:
+            duracao_amostrada = rng.triangular(
+                minimo_dias, dias_restantes, maximo_dias, size=n_simulacoes,
+            )
+        duracao_ns = np.clip(duracao_amostrada, 0.1, None) * _NS_POR_DIA
+
+        inicio_sim[uid] = inicio_efetivo
+        termino_sim[uid] = inicio_efetivo + duracao_ns.astype("int64")
+
+    termino_projeto_ns = np.maximum.reduce(list(termino_sim.values()))
+    datas_simuladas = pd.to_datetime(termino_projeto_ns).values
+
+    percentis = {}
+    for p in (10, 50, 80, 90):
+        valor_ns = int(np.percentile(termino_projeto_ns, p))
+        percentis[p] = pd.Timestamp(valor_ns).date()
+
+    return ResultadoMonteCarlo(
+        datas_simuladas=datas_simuladas,
+        percentis=percentis,
+        n_tarefas_simuladas=sum(1 for t in tarefas if t.percentual_concluido < 100),
+    )
+
+
+@dataclass
+class ResultadoCorrenteCritica:
+    buffer_dias: float
+    percentual_buffer_consumido: float
+    percentual_corrente_critica_concluida: float
+    zona: str  # "verde", "amarela" ou "vermelha"
+    origem_buffer: str  # "detectado" (tarefa de buffer já existe no arquivo) ou "sintetico" (via Monte Carlo)
+    nome_tarefa_buffer: Optional[str]
+    origem_corrente: str = "critica_ms_project"  # ou "cadeia_via_buffer"
+
+
+def detectar_tarefa_buffer(projeto: Projeto) -> Optional[Tarefa]:
+    """Procura uma tarefa cujo nome contenha 'buffer' ou 'pulmão' — prática comum de
+    quem já modela Corrente Crítica dentro do MS Project como uma tarefa explícita
+    (normalmente no fim da corrente crítica). Se houver mais de uma, usa a última
+    (maior término), que costuma ser o buffer de projeto."""
+    candidatas = [
+        t for t in projeto.tarefas_detalhe
+        if "buffer" in t.nome.lower() or "pulmão" in t.nome.lower() or "pulmao" in t.nome.lower()
+    ]
+    if not candidatas:
+        return None
+    return max(candidatas, key=lambda t: t.termino or date.min)
+
+
+def _e_tarefa_buffer(tarefa: Tarefa) -> bool:
+    nome = tarefa.nome.lower()
+    return "buffer" in nome or "pulmão" in nome or "pulmao" in nome
+
+
+def _identificar_cadeia_por_buffer(projeto: Projeto, tarefa_buffer: Tarefa) -> list[Tarefa]:
+    """Reconstrói a corrente crítica andando para trás nas dependências a partir do
+    buffer de projeto, para ferramentas de CCPM (como o Concerto) que não marcam
+    tarefa.critica no cronograma — só inserem a tarefa de buffer no fim da cadeia.
+
+    Para em qualquer tarefa cujo nome também pareça um buffer (feeding buffer de outra
+    perna do cronograma) sem seguir para trás dela, já que essas alimentam a corrente
+    crítica em um ponto específico mas pertencem a uma ramificação secundária, não à
+    espinha dorsal principal que o buffer de projeto protege.
+    """
+    tarefas_por_uid = {t.uid: t for t in projeto.tarefas_detalhe}
+    visitadas: set[str] = set()
+    cadeia: list[Tarefa] = []
+    fila = [dep.predecessora_uid for dep in tarefa_buffer.dependencias]
+    while fila:
+        uid = fila.pop()
+        if uid in visitadas:
+            continue
+        visitadas.add(uid)
+        tarefa = tarefas_por_uid.get(uid)
+        if tarefa is None:
+            continue
+        cadeia.append(tarefa)
+        if _e_tarefa_buffer(tarefa):
+            continue
+        fila.extend(dep.predecessora_uid for dep in tarefa.dependencias)
+    return cadeia
+
+
+def calcular_corrente_critica(
+    projeto: Projeto,
+    indicadores: Indicadores,
+    resultado_monte_carlo: Optional[ResultadoMonteCarlo] = None,
+) -> Optional[ResultadoCorrenteCritica]:
+    """Calcula os dois números do 'gráfico de febre' (fever chart) da metodologia de
+    Corrente Crítica (CCPM): quanto da corrente crítica já foi executado e quanto do
+    buffer de projeto já foi consumido.
+
+    Limitação: este programa não faz nivelamento de recursos, então 'corrente crítica'
+    aqui é aproximada pelo caminho crítico já calculado pelo MS Project (tarefa.critica)
+    — a corrente crítica de verdade poderia diferir quando há disputa de recursos entre
+    tarefas não sequenciais.
+
+    O buffer é obtido de duas formas: se o cronograma já tem uma tarefa nomeada como
+    'buffer'/'pulmão' (prática comum de quem já modela CCPM dentro do MS Project), usa
+    a duração e o % concluído dela diretamente. Caso contrário, sintetiza um buffer a
+    partir da simulação de Monte Carlo (diferença entre P80 e P50 de término) e estima
+    o consumo pelo atraso atual em relação a esse buffer.
+
+    Quando nenhuma tarefa está marcada como crítica (comum em arquivos gerados por
+    ferramentas de CCPM dedicadas, como o Concerto, que não usam o campo tradicional do
+    MS Project) mas existe uma tarefa de buffer detectável, a corrente crítica é
+    reconstruída andando para trás nas dependências a partir do buffer.
+    """
+    tarefas_criticas = [t for t in projeto.tarefas_detalhe if t.critica]
+    origem_corrente = "critica_ms_project"
+    tarefa_buffer_previa = None
+    if not tarefas_criticas:
+        tarefa_buffer_previa = detectar_tarefa_buffer(projeto)
+        if tarefa_buffer_previa is None:
+            return None
+        tarefas_criticas = _identificar_cadeia_por_buffer(projeto, tarefa_buffer_previa)
+        if not tarefas_criticas:
+            return None
+        origem_corrente = "cadeia_via_buffer"
+
+    peso_total = sum((t.duracao_linha_base_horas or t.duracao_horas) for t in tarefas_criticas) or 1.0
+    pct_concluido_cc = sum(
+        t.percentual_concluido * (t.duracao_linha_base_horas or t.duracao_horas) for t in tarefas_criticas
+    ) / peso_total
+
+    tarefa_buffer = tarefa_buffer_previa or detectar_tarefa_buffer(projeto)
+    if tarefa_buffer is not None:
+        buffer_dias = (tarefa_buffer.duracao_linha_base_horas or tarefa_buffer.duracao_horas or 8.0) / 8.0
+        pct_consumido = min(max(tarefa_buffer.percentual_concluido, 0.0), 100.0)
+        origem = "detectado"
+        nome_buffer = tarefa_buffer.nome
+    elif resultado_monte_carlo is not None:
+        p50 = resultado_monte_carlo.percentis[50]
+        p80 = resultado_monte_carlo.percentis[80]
+        buffer_dias = max((p80 - p50).days, 1)
+        atraso_atual_dias = max(indicadores.atraso_dias, 0)
+        pct_consumido = min(atraso_atual_dias / buffer_dias * 100, 100.0)
+        origem = "sintetico"
+        nome_buffer = None
+    else:
+        return None
+
+    # Critério de zona simplificado (não é uma fórmula-padrão única na literatura de
+    # CCPM — há variações entre autores): a tolerância ao consumo do buffer cresce à
+    # medida que a corrente crítica avança, já que consumir buffer cedo no projeto é
+    # mais grave do que perto do fim (menos tempo restante para se recuperar).
+    limite_amarelo = (pct_concluido_cc / 100) * 66.7 + 10
+    limite_vermelho = (pct_concluido_cc / 100) * 66.7 + 33.3
+    if pct_consumido <= limite_amarelo:
+        zona = "verde"
+    elif pct_consumido <= limite_vermelho:
+        zona = "amarela"
+    else:
+        zona = "vermelha"
+
+    return ResultadoCorrenteCritica(
+        buffer_dias=buffer_dias,
+        percentual_buffer_consumido=pct_consumido,
+        percentual_corrente_critica_concluida=pct_concluido_cc,
+        zona=zona,
+        origem_buffer=origem,
+        nome_tarefa_buffer=nome_buffer,
+        origem_corrente=origem_corrente,
+    )

@@ -10,7 +10,14 @@ __pycache__/
 # Arquivos reais de cronograma (dados sensíveis da empresa) - nunca versionar
 PRJ*.xml
 PRJ*.mpp
+PRJ*.ccx
 *.mpp
+*.ccx
 
 # Arquivos temporários do Excel
 ~$*.xlsx
+
+# Versão web (React + FastAPI) - dependências não versionadas
+web/frontend/node_modules/
+web/frontend/dist/
+web/backend/.venv/

@@ -14,18 +14,22 @@ from cronograma.checklist import avaliar_checklist as _avaliar_checklist_impl
 from cronograma.checklist import calcular_pontuacao
 from cronograma.curva_s import gerar_curva_s as _gerar_curva_s_impl
 from cronograma.i18n import formatar_data, formato_coluna_data, t, tf
+from cronograma.leitor_ccx import DriverAccessIndisponivelError, ler_ccx
 from cronograma.leitor_mpp import MpxjIndisponivelError, ler_mpp
 from cronograma.leitor_xml import ArquivoInvalidoError, ler_xml
 from cronograma.metricas import (
     avaliar_riscos_tarefas,
+    calcular_corrente_critica,
     calcular_faixa_previsao_termino,
     calcular_indicadores as _calcular_indicadores_impl,
+    detectar_tarefa_buffer,
     dias_atraso_tarefa,
     formatar_valor,
     gerar_observacoes_simulacao,
     gerar_percepcoes,
     gerar_recomendacoes,
     simular_conclusao_tarefas,
+    simular_monte_carlo_termino as _simular_monte_carlo_termino_impl,
 )
 from cronograma.portfolio import (
     calcular_indicadores_portfolio as _calcular_indicadores_portfolio_impl,
@@ -82,6 +86,14 @@ def gerar_pdf_status_reuniao(
         projeto, indicadores, curva_s, riscos, marcos_pendentes, tarefas_atrasadas_top,
         resultado_checklist, periodo_linha_base_ativa_texto, data_status,
         recomendacoes, faixa_previsao,
+    )
+
+
+@st.cache_data(show_spinner=False)
+def simular_monte_carlo_termino(projeto, data_status, n_simulacoes=2000, fator_otimista=0.8, fator_pessimista=1.3):
+    return _simular_monte_carlo_termino_impl(
+        projeto, data_status, n_simulacoes=n_simulacoes,
+        fator_otimista=fator_otimista, fator_pessimista=fator_pessimista,
     )
 
 
@@ -213,8 +225,10 @@ def processar_arquivo(conteudo: bytes, nome_arquivo: str):
             return ler_xml(caminho)
         elif sufixo == ".mpp":
             return ler_mpp(caminho)
+        elif sufixo == ".ccx":
+            return ler_ccx(caminho)
         else:
-            raise ValueError("Formato de arquivo não suportado. Envie um arquivo .xml ou .mpp.")
+            raise ValueError("Formato de arquivo não suportado. Envie um arquivo .xml, .mpp ou .ccx.")
     finally:
         os.unlink(caminho)
 
@@ -222,10 +236,11 @@ def processar_arquivo(conteudo: bytes, nome_arquivo: str):
 st.sidebar.title(t("📁 Cronograma", idioma))
 arquivos = st.sidebar.file_uploader(
     t("Envie o(s) arquivo(s) do cronograma", idioma),
-    type=["xml", "mpp"],
+    type=["xml", "mpp", "ccx"],
     accept_multiple_files=True,
     help=t(
-        "Arquivo .mpp do MS Project, ou .xml exportado via Arquivo > Salvar Como > XML. "
+        "Arquivo .mpp do MS Project, .xml exportado via Arquivo > Salvar Como > XML, ou "
+        ".ccx do Concerto (ProChain, Corrente Crítica). "
         "Envie mais de um arquivo para ver a aba de Portfólio.",
         idioma,
     ),
@@ -238,6 +253,8 @@ for arquivo in arquivos or []:
     except ArquivoInvalidoError as e:
         st.sidebar.error(tf("Não foi possível ler o arquivo {nome}: {erro}", idioma, nome=arquivo.name, erro=e))
     except MpxjIndisponivelError as e:
+        st.sidebar.error(str(e))
+    except DriverAccessIndisponivelError as e:
         st.sidebar.error(str(e))
     except ValueError as e:
         st.sidebar.error(str(e))
@@ -252,7 +269,8 @@ if not st.session_state.get("projetos"):
     st.title(t("📊 Gestão de Projetos", idioma))
     st.info(
         t(
-            "👈 Envie um arquivo **.xml** (exportado do MS Project) ou **.mpp** na barra lateral para começar.\n\n"
+            "👈 Envie um arquivo **.xml** (exportado do MS Project), **.mpp** ou **.ccx** (Concerto) "
+            "na barra lateral para começar.\n\n"
             "Para exportar o XML no MS Project: **Arquivo > Salvar Como**, escolha o tipo **XML**.",
             idioma,
         )
@@ -365,6 +383,7 @@ _nomes_abas = [
     t("📊 Portfólio", idioma),
     t("🖥️ Status de Reunião", idioma),
     t("🎲 Simulação", idioma),
+    t("🔗 Corrente Crítica", idioma),
     t("📈 Resumo", idioma),
     t("📉 Curva S", idioma),
     t("✅ Tarefas", idioma),
@@ -374,7 +393,7 @@ _nomes_abas = [
     t("📤 Exportar", idioma),
 ]
 (
-    aba_portfolio, aba_status, aba_simulacao, aba_resumo, aba_curva, aba_tarefas, aba_gantt,
+    aba_portfolio, aba_status, aba_simulacao, aba_corrente_critica, aba_resumo, aba_curva, aba_tarefas, aba_gantt,
     aba_checklist, aba_recursos, aba_exportar,
 ) = st.tabs(_nomes_abas)
 
@@ -851,6 +870,229 @@ with aba_simulacao:
                 "Esta simulação não recalcula dependências entre tarefas nem atualiza datas de "
                 "término — ela reflete só o efeito das tarefas marcadas nos indicadores "
                 "agregados de progresso e custo.",
+                idioma,
+            )
+        )
+
+    st.divider()
+    st.subheader(t("🎲 Simulação de Monte Carlo — Previsão de Término", idioma))
+    st.caption(
+        t(
+            "Roda milhares de cenários variando a duração das tarefas ainda não concluídas e "
+            "propaga o efeito pelas dependências entre elas, para estimar a chance de terminar "
+            "até cada data — em vez de uma única previsão fixa.",
+            idioma,
+        )
+    )
+
+    col_mc_n, col_mc_ot, col_mc_pe = st.columns(3)
+    n_simulacoes_mc = col_mc_n.selectbox(
+        t("Nº de simulações", idioma), [500, 1000, 2000, 5000], index=2,
+        key=f"mc_n_{nome_projeto_atual}",
+    )
+    pct_otimista_mc = col_mc_ot.slider(
+        t("Cenário otimista (% da duração planejada)", idioma), 50, 100, 80,
+        key=f"mc_otimista_{nome_projeto_atual}",
+    )
+    pct_pessimista_mc = col_mc_pe.slider(
+        t("Cenário pessimista (% da duração planejada)", idioma), 100, 250, 130,
+        key=f"mc_pessimista_{nome_projeto_atual}",
+    )
+
+    resultado_mc = simular_monte_carlo_termino(
+        projeto, data_status, n_simulacoes=n_simulacoes_mc,
+        fator_otimista=pct_otimista_mc / 100, fator_pessimista=pct_pessimista_mc / 100,
+    )
+
+    if resultado_mc is None:
+        st.info(t("Não há tarefas com datas suficientes para rodar a simulação de Monte Carlo.", idioma))
+    else:
+        col_p10, col_p50, col_p80, col_p90 = st.columns(4)
+        col_p10.metric(
+            "P10", formatar_data(resultado_mc.percentis[10], idioma),
+            help=tf("{pct}% de chance de terminar até esta data.", idioma, pct=10),
+        )
+        col_p50.metric(
+            "P50", formatar_data(resultado_mc.percentis[50], idioma),
+            help=t("50% de chance (mediana) — a estimativa mais provável.", idioma),
+        )
+        col_p80.metric(
+            "P80", formatar_data(resultado_mc.percentis[80], idioma),
+            help=tf("{pct}% de chance de terminar até esta data.", idioma, pct=80),
+        )
+        col_p90.metric(
+            "P90", formatar_data(resultado_mc.percentis[90], idioma),
+            help=tf("{pct}% de chance de terminar até esta data.", idioma, pct=90),
+        )
+        st.caption(
+            tf(
+                "Com base em {n} cenários simulados, há 80% de chance de o projeto terminar até {data}.",
+                idioma, n=n_simulacoes_mc, data=formatar_data(resultado_mc.percentis[80], idioma),
+            )
+        )
+
+        datas_mc = pd.to_datetime(resultado_mc.datas_simuladas).normalize()
+        contagem_mc = datas_mc.value_counts().sort_index()
+        contagem_mc_df = pd.DataFrame({
+            "data": contagem_mc.index,
+            "cenarios": contagem_mc.values,
+        })
+        contagem_mc_df["probabilidade_acumulada"] = (
+            contagem_mc_df["cenarios"].cumsum() / contagem_mc_df["cenarios"].sum() * 100
+        )
+
+        fig_mc = go.Figure()
+        fig_mc.add_trace(
+            go.Bar(
+                x=contagem_mc_df["data"], y=contagem_mc_df["cenarios"],
+                name=t("Cenários simulados", idioma), marker_color="#5B8DB8",
+            )
+        )
+        fig_mc.add_trace(
+            go.Scatter(
+                x=contagem_mc_df["data"], y=contagem_mc_df["probabilidade_acumulada"],
+                name=t("Probabilidade acumulada (%)", idioma), yaxis="y2",
+                line=dict(color="#2E8B57", width=2.5),
+            )
+        )
+        fig_mc.update_layout(
+            height=320, margin=dict(l=10, r=10, t=30, b=10),
+            xaxis=dict(title=t("Data de término simulada", idioma)),
+            yaxis=dict(title=t("Cenários simulados", idioma)),
+            yaxis2=dict(
+                title=t("Probabilidade acumulada (%)", idioma), overlaying="y", side="right",
+                range=[0, 100], ticksuffix="%",
+            ),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+        )
+        st.plotly_chart(fig_mc, width="stretch")
+
+        st.caption(
+            t(
+                "Cada tarefa sem predecessora mantém a data de início atualmente agendada — só "
+                "a duração é incerta; o programa não tem um motor de CPM completo.",
+                idioma,
+            )
+        )
+
+with aba_corrente_critica:
+    st.subheader(t("Corrente Crítica (CCPM)", idioma))
+    st.caption(
+        t(
+            "Acompanhamento no estilo Corrente Crítica: em vez de % concluído e SPI, monitora o "
+            "consumo do buffer de projeto em relação ao avanço da corrente crítica — o "
+            "'gráfico de febre' clássico dessa metodologia.",
+            idioma,
+        )
+    )
+    st.caption(
+        t(
+            "Este programa não faz nivelamento de recursos, então a 'corrente crítica' aqui é "
+            "aproximada pelo caminho crítico já calculado pelo MS Project — a corrente crítica "
+            "real poderia diferir quando há disputa de recursos entre tarefas.",
+            idioma,
+        )
+    )
+
+    resultado_mc_cc = simular_monte_carlo_termino(projeto, data_status)
+    resultado_cc = calcular_corrente_critica(projeto, indicadores, resultado_monte_carlo=resultado_mc_cc)
+
+    if resultado_cc is None:
+        st.info(
+            t(
+                "Nenhuma tarefa crítica identificada no cronograma — não é possível calcular a "
+                "corrente crítica.",
+                idioma,
+            )
+        )
+    else:
+        col_cc1, col_cc2 = st.columns(2)
+        col_cc1.metric(
+            t("% da Corrente Crítica Concluída", idioma),
+            f"{resultado_cc.percentual_corrente_critica_concluida:.1f}%",
+        )
+        col_cc2.metric(
+            t("% do Buffer Consumido", idioma),
+            f"{resultado_cc.percentual_buffer_consumido:.1f}%",
+        )
+
+        if resultado_cc.origem_buffer == "detectado":
+            st.caption(
+                tf(
+                    "Tarefa de buffer detectada no cronograma: '{nome}'.",
+                    idioma, nome=resultado_cc.nome_tarefa_buffer,
+                )
+            )
+        else:
+            st.caption(
+                t(
+                    "Nenhuma tarefa de buffer encontrada no cronograma — o buffer foi estimado a "
+                    "partir da simulação de Monte Carlo (diferença entre P80 e P50 de término).",
+                    idioma,
+                )
+            )
+        st.caption(tf("Buffer de projeto: {dias:.0f} dia(s)", idioma, dias=resultado_cc.buffer_dias))
+
+        st.markdown(f"**{t('Gráfico de Febre (Fever Chart)', idioma)}**")
+        eixo_x_cc = [0, 100]
+        limite_amarelo_cc = [10, 76.7]
+        limite_vermelho_cc = [33.3, 100]
+        teto_cc = [max(100.0, resultado_cc.percentual_buffer_consumido) + 10] * 2
+
+        fig_cc = go.Figure()
+        fig_cc.add_trace(go.Scatter(x=eixo_x_cc, y=[0, 0], mode="lines", line=dict(width=0), showlegend=False, hoverinfo="skip"))
+        fig_cc.add_trace(
+            go.Scatter(
+                x=eixo_x_cc, y=limite_amarelo_cc, mode="lines", line=dict(width=0),
+                fill="tonexty", fillcolor="rgba(46,139,87,0.25)", name=t("Verde", idioma), hoverinfo="skip",
+            )
+        )
+        fig_cc.add_trace(
+            go.Scatter(
+                x=eixo_x_cc, y=limite_vermelho_cc, mode="lines", line=dict(width=0),
+                fill="tonexty", fillcolor="rgba(241,196,15,0.3)", name=t("Amarela", idioma), hoverinfo="skip",
+            )
+        )
+        fig_cc.add_trace(
+            go.Scatter(
+                x=eixo_x_cc, y=teto_cc, mode="lines", line=dict(width=0),
+                fill="tonexty", fillcolor="rgba(192,57,43,0.25)", name=t("Vermelha", idioma), hoverinfo="skip",
+            )
+        )
+        fig_cc.add_trace(
+            go.Scatter(
+                x=[resultado_cc.percentual_corrente_critica_concluida],
+                y=[resultado_cc.percentual_buffer_consumido],
+                mode="markers", marker=dict(size=18, color="#2E4053", symbol="diamond", line=dict(width=1, color="white")),
+                name=t("Status atual", idioma),
+            )
+        )
+        fig_cc.update_layout(
+            height=380, margin=dict(l=10, r=10, t=30, b=10),
+            xaxis=dict(title=t("% da Corrente Crítica Concluída", idioma), range=[0, 100], ticksuffix="%"),
+            yaxis=dict(
+                title=t("% do Buffer Consumido", idioma),
+                range=[0, max(100.0, resultado_cc.percentual_buffer_consumido) + 10], ticksuffix="%",
+            ),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+        )
+        st.plotly_chart(fig_cc, width="stretch")
+
+        textos_zona_cc = {
+            "verde": "Zona verde: o buffer está sendo consumido num ritmo saudável em relação ao "
+                     "progresso da corrente crítica.",
+            "amarela": "Zona amarela: o consumo do buffer está acima do ideal — vale monitorar de "
+                       "perto e identificar a causa.",
+            "vermelha": "Zona vermelha: o buffer está sendo consumido rápido demais em relação ao "
+                        "progresso da corrente crítica — considere ação corretiva.",
+        }
+        mostrar_zona_cc = {"verde": st.success, "amarela": st.warning, "vermelha": st.error}[resultado_cc.zona]
+        mostrar_zona_cc(t(textos_zona_cc[resultado_cc.zona], idioma))
+
+        st.caption(
+            t(
+                "Este ponto mostra só a data de status atual — acompanhar a tendência ao longo do "
+                "tempo exigiria comparar vários uploads do mesmo cronograma.",
                 idioma,
             )
         )

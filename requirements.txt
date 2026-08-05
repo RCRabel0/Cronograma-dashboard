@@ -1,5 +1,6 @@
 streamlit>=1.36
 pandas>=2.2
+numpy>=1.26
 plotly>=5.22
 openpyxl>=3.1
 reportlab>=4.2
@@ -8,3 +9,8 @@ matplotlib>=3.9
 # Suporte a arquivos .mpp (requer Java - veja packages.txt para o deploy na nuvem)
 mpxj>=13.0
 JPype1>=1.5
+
+# Suporte a arquivos .ccx do Concerto/ProChain (requer Windows + driver ODBC do
+# Microsoft Access instalado - não funciona em outros sistemas operacionais nem
+# no deploy na nuvem; o app degrada com uma mensagem de erro clara nesse caso)
+pyodbc>=5.1

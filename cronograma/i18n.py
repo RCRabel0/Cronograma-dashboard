@@ -50,17 +50,21 @@ TRADUCOES: dict[str, str] = {
     "Não foi possível enviar sua sugestão: {erro}": "Could not send your suggestion: {erro}",
     "📁 Cronograma": "📁 Schedule",
     "Envie o(s) arquivo(s) do cronograma": "Upload the schedule file(s)",
-    "Arquivo .mpp do MS Project, ou .xml exportado via Arquivo > Salvar Como > XML. "
+    "Arquivo .mpp do MS Project, .xml exportado via Arquivo > Salvar Como > XML, ou "
+    ".ccx do Concerto (ProChain, Corrente Crítica). "
     "Envie mais de um arquivo para ver a aba de Portfólio.":
-        "MS Project .mpp file, or .xml exported via File > Save As > XML. "
+        "MS Project .mpp file, .xml exported via File > Save As > XML, or "
+        ".ccx from Concerto (ProChain, Critical Chain). "
         "Upload more than one file to see the Portfolio tab.",
     "Não foi possível ler o arquivo {nome}: {erro}": "Could not read the file {nome}: {erro}",
     "Ocorreu um erro inesperado ao ler o arquivo {nome}: {erro}": "An unexpected error occurred while reading the file {nome}: {erro}",
     "📊 Gestão de Projetos": "📊 Project Management",
     "Gestão de Projetos": "Project Management",
-    "👈 Envie um arquivo **.xml** (exportado do MS Project) ou **.mpp** na barra lateral para começar.\n\n"
+    "👈 Envie um arquivo **.xml** (exportado do MS Project), **.mpp** ou **.ccx** (Concerto) "
+    "na barra lateral para começar.\n\n"
     "Para exportar o XML no MS Project: **Arquivo > Salvar Como**, escolha o tipo **XML**.":
-        "👈 Upload an **.xml** file (exported from MS Project) or **.mpp** in the sidebar to get started.\n\n"
+        "👈 Upload an **.xml** file (exported from MS Project), **.mpp** or **.ccx** (Concerto) "
+        "in the sidebar to get started.\n\n"
         "To export the XML from MS Project: **File > Save As**, choose the **XML** type.",
     "Projeto para detalhamento": "Project for detail view",
     "**Detalhando o projeto:** {v}": "**Showing details for:** {v}",
@@ -130,6 +134,7 @@ TRADUCOES: dict[str, str] = {
     "👥 Recursos": "👥 Resources",
     "📤 Exportar": "📤 Export",
     "🎲 Simulação": "🎲 Simulation",
+    "🔗 Corrente Crítica": "🔗 Critical Chain",
 
     # --- Simulação 'e se' ---
     "Simulação \"e se\"": "\"What if\" simulation",
@@ -161,6 +166,79 @@ TRADUCOES: dict[str, str] = {
         "By completing '{nome}', no other task in the schedule depends directly on it.",
     "Como é uma tarefa crítica, isso também reduz o risco no caminho crítico do projeto.":
         "Since it's a critical task, this also reduces risk on the project's critical path.",
+
+    # --- Simulação de Monte Carlo ---
+    "🎲 Simulação de Monte Carlo — Previsão de Término": "🎲 Monte Carlo Simulation — Finish Forecast",
+    "Roda milhares de cenários variando a duração das tarefas ainda não concluídas e "
+    "propaga o efeito pelas dependências entre elas, para estimar a chance de terminar "
+    "até cada data — em vez de uma única previsão fixa.":
+        "Runs thousands of scenarios varying the duration of tasks not yet completed and "
+        "propagates the effect through their dependencies, to estimate the chance of "
+        "finishing by each date — instead of a single fixed forecast.",
+    "Nº de simulações": "Number of simulations",
+    "Cenário otimista (% da duração planejada)": "Optimistic scenario (% of planned duration)",
+    "Cenário pessimista (% da duração planejada)": "Pessimistic scenario (% of planned duration)",
+    "{pct}% de chance de terminar até esta data.": "{pct}% chance of finishing by this date.",
+    "50% de chance (mediana) — a estimativa mais provável.": "50% chance (median) — the most likely estimate.",
+    "Com base em {n} cenários simulados, há 80% de chance de o projeto terminar até {data}.":
+        "Based on {n} simulated scenarios, there is an 80% chance the project finishes by {data}.",
+    "Cenários simulados": "Simulated scenarios",
+    "Probabilidade acumulada (%)": "Cumulative probability (%)",
+    "Data de término simulada": "Simulated finish date",
+    "Cada tarefa sem predecessora mantém a data de início atualmente agendada — só "
+    "a duração é incerta; o programa não tem um motor de CPM completo.":
+        "Each task without a predecessor keeps its currently scheduled start date — only "
+        "the duration is uncertain; this program does not have a full CPM engine.",
+    "Não há tarefas com datas suficientes para rodar a simulação de Monte Carlo.":
+        "There aren't enough dated tasks to run the Monte Carlo simulation.",
+
+    # --- Corrente Crítica (CCPM) ---
+    "Corrente Crítica (CCPM)": "Critical Chain (CCPM)",
+    "Acompanhamento no estilo Corrente Crítica: em vez de % concluído e SPI, monitora o "
+    "consumo do buffer de projeto em relação ao avanço da corrente crítica — o "
+    "'gráfico de febre' clássico dessa metodologia.":
+        "Critical Chain-style tracking: instead of % complete and SPI, monitors project "
+        "buffer consumption relative to critical chain progress — the classic 'fever "
+        "chart' of this methodology.",
+    "Este programa não faz nivelamento de recursos, então a 'corrente crítica' aqui é "
+    "aproximada pelo caminho crítico já calculado pelo MS Project — a corrente crítica "
+    "real poderia diferir quando há disputa de recursos entre tarefas.":
+        "This program does not perform resource leveling, so the 'critical chain' here "
+        "is approximated by the critical path already calculated by MS Project — the "
+        "real critical chain could differ when tasks compete for the same resources.",
+    "% da Corrente Crítica Concluída": "% of Critical Chain Complete",
+    "% do Buffer Consumido": "% of Buffer Consumed",
+    "Buffer de projeto: {dias:.0f} dia(s)": "Project buffer: {dias:.0f} day(s)",
+    "Tarefa de buffer detectada no cronograma: '{nome}'.": "Buffer task detected in the schedule: '{nome}'.",
+    "Nenhuma tarefa de buffer encontrada no cronograma — o buffer foi estimado a "
+    "partir da simulação de Monte Carlo (diferença entre P80 e P50 de término).":
+        "No buffer task found in the schedule — the buffer was estimated from the "
+        "Monte Carlo simulation (difference between the P80 and P50 finish dates).",
+    "Gráfico de Febre (Fever Chart)": "Fever Chart",
+    "Status atual": "Current status",
+    "Verde": "Green",
+    "Amarela": "Yellow",
+    "Vermelha": "Red",
+    "Zona verde: o buffer está sendo consumido num ritmo saudável em relação ao "
+    "progresso da corrente crítica.":
+        "Green zone: the buffer is being consumed at a healthy pace relative to the "
+        "critical chain's progress.",
+    "Zona amarela: o consumo do buffer está acima do ideal — vale monitorar de perto "
+    "e identificar a causa.":
+        "Yellow zone: buffer consumption is above ideal — worth monitoring closely and "
+        "identifying the cause.",
+    "Zona vermelha: o buffer está sendo consumido rápido demais em relação ao "
+    "progresso da corrente crítica — considere ação corretiva.":
+        "Red zone: the buffer is being consumed too fast relative to the critical "
+        "chain's progress — consider corrective action.",
+    "Nenhuma tarefa crítica identificada no cronograma — não é possível calcular a "
+    "corrente crítica.":
+        "No critical task identified in the schedule — the critical chain cannot be "
+        "calculated.",
+    "Este ponto mostra só a data de status atual — acompanhar a tendência ao longo do "
+    "tempo exigiria comparar vários uploads do mesmo cronograma.":
+        "This point only shows the current status date — tracking the trend over time "
+        "would require comparing multiple uploads of the same schedule.",
 
     # --- Portfólio ---
     "Portfólio de Projetos": "Project Portfolio",

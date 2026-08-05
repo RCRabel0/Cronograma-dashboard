@@ -4,14 +4,22 @@ Cada teste sobe o app de verdade (sem navegador), envia arquivos pelo uploader
 e verifica que nenhuma exceção ocorre e que os elementos esperados aparecem.
 """
 
+from datetime import datetime
 from pathlib import Path
 
 import pytest
 from streamlit.testing.v1 import AppTest
 
+from cronograma.leitor_ccx import _driver_disponivel
+
 RAIZ = Path(__file__).resolve().parent.parent
 APP = str(RAIZ / "app.py")
 TIMEOUT = 90
+
+
+def _arquivo_ccx_real() -> Path | None:
+    candidatos = sorted(RAIZ.glob("*.ccx"))
+    return candidatos[0] if candidatos else None
 
 
 def _ler(caminho: Path) -> bytes:
@@ -135,6 +143,58 @@ def test_simulacao_sem_selecao_nao_mostra_observacoes(app):
     aba = app.tabs[2]
     textos_markdown = " ".join(m.value for m in aba.markdown)
     assert "Observações" not in textos_markdown
+
+
+def test_simulacao_monte_carlo(app):
+    _upload(app, "exemplo.xml", _ler(RAIZ / "exemplo_cronograma.xml"))
+    aba = app.tabs[2]
+    metricas_por_rotulo = {m.label: m.value for m in aba.metric}
+    assert {"P10", "P50", "P80", "P90"} <= set(metricas_por_rotulo)
+    # As 4 datas de percentil (formato dd/mm/aaaa) devem estar em ordem cronológica.
+    datas_percentis = [
+        datetime.strptime(metricas_por_rotulo[rotulo], "%d/%m/%Y")
+        for rotulo in ("P10", "P50", "P80", "P90")
+    ]
+    assert datas_percentis == sorted(datas_percentis)
+
+    slider_pessimista = next(s for s in aba.slider if "pessimista" in s.label.lower())
+    slider_pessimista.set_value(250).run(timeout=TIMEOUT)
+    assert not app.exception
+
+
+def test_aba_corrente_critica(app):
+    _upload(app, "exemplo.xml", _ler(RAIZ / "exemplo_cronograma.xml"))
+    aba = app.tabs[3]
+    rotulos_metricas = {m.label for m in aba.metric}
+    assert {"% da Corrente Crítica Concluída", "% do Buffer Consumido"} <= rotulos_metricas
+    # 'exemplo_cronograma.xml' não tem tarefa nomeada como buffer, então o buffer deve
+    # ser sintetizado via Monte Carlo — a legenda correspondente deve aparecer.
+    textos_caption = " ".join(c.value for c in aba.caption)
+    assert "estimado a partir da simulação de Monte Carlo" in textos_caption
+
+
+@pytest.mark.skipif(
+    not _driver_disponivel(),
+    reason="requer o driver ODBC do Microsoft Access instalado (Windows)",
+)
+@pytest.mark.skipif(
+    _arquivo_ccx_real() is None,
+    reason="requer um arquivo .ccx real na raiz do projeto para o teste de integração",
+)
+def test_upload_ccx_real_mostra_corrente_critica_reconstruida(app):
+    app.sidebar.file_uploader[0].upload(
+        _arquivo_ccx_real().name, _arquivo_ccx_real().read_bytes(), "application/octet-stream",
+    )
+    app.run(timeout=TIMEOUT)
+    assert not app.exception, [e.value for e in app.exception]
+
+    aba = app.tabs[3]
+    rotulos_metricas = {m.label for m in aba.metric}
+    assert {"% da Corrente Crítica Concluída", "% do Buffer Consumido"} <= rotulos_metricas
+    # Este arquivo real de CCPM (Concerto) não marca tarefa.critica no MS Project — a
+    # corrente crítica deve ter sido reconstruída via o buffer de projeto detectado.
+    textos_caption = " ".join(c.value for c in aba.caption)
+    assert "Project Buffer" in textos_caption or "buffer" in textos_caption.lower()
 
 
 def test_seletor_peso_editado(app):
