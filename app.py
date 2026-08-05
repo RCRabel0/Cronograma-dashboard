@@ -1,5 +1,6 @@
 import os
 import smtplib
+import sys
 import tempfile
 from collections import defaultdict
 from datetime import date, datetime
@@ -395,14 +396,11 @@ else:
     info_cols[4].caption(tf("**Linha de base ativa:** {v}", idioma, v=_periodo_lb_ativa))
 
 def _ambiente_publicado() -> bool:
-    """True quando rodando na versão publicada (nuvem) — controlado por um segredo
-    configurado direto no Streamlit Cloud (não fica em .streamlit/secrets.toml
-    versionado, então localmente esse segredo nunca existe e a função retorna False).
+    """True quando rodando na versão publicada (nuvem) — detectado automaticamente pela
+    plataforma, já que a versão local só roda no Windows (via Iniciar Dashboard.bat) e o
+    deploy na nuvem roda em Linux. Não exige nenhuma configuração manual.
     Usado para esconder recursos ainda experimentais da versão que fica pública."""
-    try:
-        return bool(st.secrets["ambiente_publicado"])
-    except Exception:
-        return False
+    return not sys.platform.startswith("win")
 
 
 _publicado = _ambiente_publicado()
