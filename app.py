@@ -394,11 +394,27 @@ else:
     info_cols[3].caption(tf("**Linhas de base salvas:** {v}", idioma, v=projeto.numero_baselines_salvas))
     info_cols[4].caption(tf("**Linha de base ativa:** {v}", idioma, v=_periodo_lb_ativa))
 
+def _ambiente_publicado() -> bool:
+    """True quando rodando na versão publicada (nuvem) — controlado por um segredo
+    configurado direto no Streamlit Cloud (não fica em .streamlit/secrets.toml
+    versionado, então localmente esse segredo nunca existe e a função retorna False).
+    Usado para esconder recursos ainda experimentais da versão que fica pública."""
+    try:
+        return bool(st.secrets["ambiente_publicado"])
+    except Exception:
+        return False
+
+
+_publicado = _ambiente_publicado()
+
 _nomes_abas = [
     t("📊 Portfólio", idioma),
     t("🖥️ Status de Reunião", idioma),
     t("🎲 Simulação", idioma),
-    t("🔗 Corrente Crítica", idioma),
+]
+if not _publicado:
+    _nomes_abas.append(t("🔗 Corrente Crítica", idioma))
+_nomes_abas += [
     t("📈 Resumo", idioma),
     t("📉 Curva S", idioma),
     t("✅ Tarefas", idioma),
@@ -407,10 +423,14 @@ _nomes_abas = [
     t("👥 Recursos", idioma),
     t("📤 Exportar", idioma),
 ]
+_abas_iter = iter(st.tabs(_nomes_abas))
+aba_portfolio = next(_abas_iter)
+aba_status = next(_abas_iter)
+aba_simulacao = next(_abas_iter)
+aba_corrente_critica = next(_abas_iter) if not _publicado else None
 (
-    aba_portfolio, aba_status, aba_simulacao, aba_corrente_critica, aba_resumo, aba_curva, aba_tarefas, aba_gantt,
-    aba_checklist, aba_recursos, aba_exportar,
-) = st.tabs(_nomes_abas)
+    aba_resumo, aba_curva, aba_tarefas, aba_gantt, aba_checklist, aba_recursos, aba_exportar,
+) = _abas_iter
 
 with aba_portfolio:
     st.subheader(t("Portfólio de Projetos", idioma))
@@ -990,127 +1010,128 @@ with aba_simulacao:
             )
         )
 
-with aba_corrente_critica:
-    st.subheader(t("Corrente Crítica (CCPM)", idioma))
-    st.caption(
-        t(
-            "Acompanhamento no estilo Corrente Crítica: em vez de % concluído e SPI, monitora o "
-            "consumo do buffer de projeto em relação ao avanço da corrente crítica — o "
-            "'gráfico de febre' clássico dessa metodologia.",
-            idioma,
-        )
-    )
-    st.caption(
-        t(
-            "Este programa não faz nivelamento de recursos, então a 'corrente crítica' aqui é "
-            "aproximada pelo caminho crítico já calculado pelo MS Project — a corrente crítica "
-            "real poderia diferir quando há disputa de recursos entre tarefas.",
-            idioma,
-        )
-    )
-
-    resultado_mc_cc = simular_monte_carlo_termino(projeto, data_status)
-    resultado_cc = calcular_corrente_critica(projeto, indicadores, resultado_monte_carlo=resultado_mc_cc)
-
-    if resultado_cc is None:
-        st.info(
+if aba_corrente_critica is not None:
+    with aba_corrente_critica:
+        st.subheader(t("Corrente Crítica (CCPM)", idioma))
+        st.caption(
             t(
-                "Nenhuma tarefa crítica identificada no cronograma — não é possível calcular a "
-                "corrente crítica.",
+                "Acompanhamento no estilo Corrente Crítica: em vez de % concluído e SPI, monitora o "
+                "consumo do buffer de projeto em relação ao avanço da corrente crítica — o "
+                "'gráfico de febre' clássico dessa metodologia.",
                 idioma,
             )
         )
-    else:
-        col_cc1, col_cc2 = st.columns(2)
-        col_cc1.metric(
-            t("% da Corrente Crítica Concluída", idioma),
-            f"{resultado_cc.percentual_corrente_critica_concluida:.1f}%",
-        )
-        col_cc2.metric(
-            t("% do Buffer Consumido", idioma),
-            f"{resultado_cc.percentual_buffer_consumido:.1f}%",
+        st.caption(
+            t(
+                "Este programa não faz nivelamento de recursos, então a 'corrente crítica' aqui é "
+                "aproximada pelo caminho crítico já calculado pelo MS Project — a corrente crítica "
+                "real poderia diferir quando há disputa de recursos entre tarefas.",
+                idioma,
+            )
         )
 
-        if resultado_cc.origem_buffer == "detectado":
-            st.caption(
-                tf(
-                    "Tarefa de buffer detectada no cronograma: '{nome}'.",
-                    idioma, nome=resultado_cc.nome_tarefa_buffer,
-                )
-            )
-        else:
-            st.caption(
+        resultado_mc_cc = simular_monte_carlo_termino(projeto, data_status)
+        resultado_cc = calcular_corrente_critica(projeto, indicadores, resultado_monte_carlo=resultado_mc_cc)
+
+        if resultado_cc is None:
+            st.info(
                 t(
-                    "Nenhuma tarefa de buffer encontrada no cronograma — o buffer foi estimado a "
-                    "partir da simulação de Monte Carlo (diferença entre P80 e P50 de término).",
+                    "Nenhuma tarefa crítica identificada no cronograma — não é possível calcular a "
+                    "corrente crítica.",
                     idioma,
                 )
             )
-        st.caption(tf("Buffer de projeto: {dias:.0f} dia(s)", idioma, dias=resultado_cc.buffer_dias))
+        else:
+            col_cc1, col_cc2 = st.columns(2)
+            col_cc1.metric(
+                t("% da Corrente Crítica Concluída", idioma),
+                f"{resultado_cc.percentual_corrente_critica_concluida:.1f}%",
+            )
+            col_cc2.metric(
+                t("% do Buffer Consumido", idioma),
+                f"{resultado_cc.percentual_buffer_consumido:.1f}%",
+            )
 
-        st.markdown(f"**{t('Gráfico de Febre (Fever Chart)', idioma)}**")
-        eixo_x_cc = [0, 100]
-        limite_amarelo_cc = [10, 76.7]
-        limite_vermelho_cc = [33.3, 100]
-        teto_cc = [max(100.0, resultado_cc.percentual_buffer_consumido) + 10] * 2
+            if resultado_cc.origem_buffer == "detectado":
+                st.caption(
+                    tf(
+                        "Tarefa de buffer detectada no cronograma: '{nome}'.",
+                        idioma, nome=resultado_cc.nome_tarefa_buffer,
+                    )
+                )
+            else:
+                st.caption(
+                    t(
+                        "Nenhuma tarefa de buffer encontrada no cronograma — o buffer foi estimado a "
+                        "partir da simulação de Monte Carlo (diferença entre P80 e P50 de término).",
+                        idioma,
+                    )
+                )
+            st.caption(tf("Buffer de projeto: {dias:.0f} dia(s)", idioma, dias=resultado_cc.buffer_dias))
 
-        fig_cc = go.Figure()
-        fig_cc.add_trace(go.Scatter(x=eixo_x_cc, y=[0, 0], mode="lines", line=dict(width=0), showlegend=False, hoverinfo="skip"))
-        fig_cc.add_trace(
-            go.Scatter(
-                x=eixo_x_cc, y=limite_amarelo_cc, mode="lines", line=dict(width=0),
-                fill="tonexty", fillcolor="rgba(46,139,87,0.25)", name=t("Verde", idioma), hoverinfo="skip",
-            )
-        )
-        fig_cc.add_trace(
-            go.Scatter(
-                x=eixo_x_cc, y=limite_vermelho_cc, mode="lines", line=dict(width=0),
-                fill="tonexty", fillcolor="rgba(241,196,15,0.3)", name=t("Amarela", idioma), hoverinfo="skip",
-            )
-        )
-        fig_cc.add_trace(
-            go.Scatter(
-                x=eixo_x_cc, y=teto_cc, mode="lines", line=dict(width=0),
-                fill="tonexty", fillcolor="rgba(192,57,43,0.25)", name=t("Vermelha", idioma), hoverinfo="skip",
-            )
-        )
-        fig_cc.add_trace(
-            go.Scatter(
-                x=[resultado_cc.percentual_corrente_critica_concluida],
-                y=[resultado_cc.percentual_buffer_consumido],
-                mode="markers", marker=dict(size=18, color="#2E4053", symbol="diamond", line=dict(width=1, color="white")),
-                name=t("Status atual", idioma),
-            )
-        )
-        fig_cc.update_layout(
-            height=380, margin=dict(l=10, r=10, t=30, b=10),
-            xaxis=dict(title=t("% da Corrente Crítica Concluída", idioma), range=[0, 100], ticksuffix="%"),
-            yaxis=dict(
-                title=t("% do Buffer Consumido", idioma),
-                range=[0, max(100.0, resultado_cc.percentual_buffer_consumido) + 10], ticksuffix="%",
-            ),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
-        )
-        st.plotly_chart(fig_cc, width="stretch")
+            st.markdown(f"**{t('Gráfico de Febre (Fever Chart)', idioma)}**")
+            eixo_x_cc = [0, 100]
+            limite_amarelo_cc = [10, 76.7]
+            limite_vermelho_cc = [33.3, 100]
+            teto_cc = [max(100.0, resultado_cc.percentual_buffer_consumido) + 10] * 2
 
-        textos_zona_cc = {
-            "verde": "Zona verde: o buffer está sendo consumido num ritmo saudável em relação ao "
-                     "progresso da corrente crítica.",
-            "amarela": "Zona amarela: o consumo do buffer está acima do ideal — vale monitorar de "
-                       "perto e identificar a causa.",
-            "vermelha": "Zona vermelha: o buffer está sendo consumido rápido demais em relação ao "
-                        "progresso da corrente crítica — considere ação corretiva.",
-        }
-        mostrar_zona_cc = {"verde": st.success, "amarela": st.warning, "vermelha": st.error}[resultado_cc.zona]
-        mostrar_zona_cc(t(textos_zona_cc[resultado_cc.zona], idioma))
-
-        st.caption(
-            t(
-                "Este ponto mostra só a data de status atual — acompanhar a tendência ao longo do "
-                "tempo exigiria comparar vários uploads do mesmo cronograma.",
-                idioma,
+            fig_cc = go.Figure()
+            fig_cc.add_trace(go.Scatter(x=eixo_x_cc, y=[0, 0], mode="lines", line=dict(width=0), showlegend=False, hoverinfo="skip"))
+            fig_cc.add_trace(
+                go.Scatter(
+                    x=eixo_x_cc, y=limite_amarelo_cc, mode="lines", line=dict(width=0),
+                    fill="tonexty", fillcolor="rgba(46,139,87,0.25)", name=t("Verde", idioma), hoverinfo="skip",
+                )
             )
-        )
+            fig_cc.add_trace(
+                go.Scatter(
+                    x=eixo_x_cc, y=limite_vermelho_cc, mode="lines", line=dict(width=0),
+                    fill="tonexty", fillcolor="rgba(241,196,15,0.3)", name=t("Amarela", idioma), hoverinfo="skip",
+                )
+            )
+            fig_cc.add_trace(
+                go.Scatter(
+                    x=eixo_x_cc, y=teto_cc, mode="lines", line=dict(width=0),
+                    fill="tonexty", fillcolor="rgba(192,57,43,0.25)", name=t("Vermelha", idioma), hoverinfo="skip",
+                )
+            )
+            fig_cc.add_trace(
+                go.Scatter(
+                    x=[resultado_cc.percentual_corrente_critica_concluida],
+                    y=[resultado_cc.percentual_buffer_consumido],
+                    mode="markers", marker=dict(size=18, color="#2E4053", symbol="diamond", line=dict(width=1, color="white")),
+                    name=t("Status atual", idioma),
+                )
+            )
+            fig_cc.update_layout(
+                height=380, margin=dict(l=10, r=10, t=30, b=10),
+                xaxis=dict(title=t("% da Corrente Crítica Concluída", idioma), range=[0, 100], ticksuffix="%"),
+                yaxis=dict(
+                    title=t("% do Buffer Consumido", idioma),
+                    range=[0, max(100.0, resultado_cc.percentual_buffer_consumido) + 10], ticksuffix="%",
+                ),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+            )
+            st.plotly_chart(fig_cc, width="stretch")
+
+            textos_zona_cc = {
+                "verde": "Zona verde: o buffer está sendo consumido num ritmo saudável em relação ao "
+                         "progresso da corrente crítica.",
+                "amarela": "Zona amarela: o consumo do buffer está acima do ideal — vale monitorar de "
+                           "perto e identificar a causa.",
+                "vermelha": "Zona vermelha: o buffer está sendo consumido rápido demais em relação ao "
+                            "progresso da corrente crítica — considere ação corretiva.",
+            }
+            mostrar_zona_cc = {"verde": st.success, "amarela": st.warning, "vermelha": st.error}[resultado_cc.zona]
+            mostrar_zona_cc(t(textos_zona_cc[resultado_cc.zona], idioma))
+
+            st.caption(
+                t(
+                    "Este ponto mostra só a data de status atual — acompanhar a tendência ao longo do "
+                    "tempo exigiria comparar vários uploads do mesmo cronograma.",
+                    idioma,
+                )
+            )
 
 with aba_resumo:
     c1, c2 = st.columns(2)
