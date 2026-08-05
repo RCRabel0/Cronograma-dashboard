@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 from streamlit.testing.v1 import AppTest
 
+import cronograma.leitor_ccx as leitor_ccx
 from cronograma.leitor_ccx import _driver_disponivel
 
 RAIZ = Path(__file__).resolve().parent.parent
@@ -195,6 +196,22 @@ def test_upload_ccx_real_mostra_corrente_critica_reconstruida(app):
     # corrente crítica deve ter sido reconstruída via o buffer de projeto detectado.
     textos_caption = " ".join(c.value for c in aba.caption)
     assert "Project Buffer" in textos_caption or "buffer" in textos_caption.lower()
+
+
+def test_uploader_oculta_ccx_quando_driver_indisponivel(monkeypatch):
+    # Na versão publicada (nuvem, Linux) o driver ODBC do Access nunca existe — a
+    # opção .ccx não deve nem aparecer no uploader, em vez de falhar após o envio.
+    monkeypatch.setattr(leitor_ccx, "_driver_disponivel", lambda: False)
+    at = AppTest.from_file(APP, default_timeout=TIMEOUT)
+    at.run()
+    assert not at.exception
+    assert at.sidebar.file_uploader[0].allowed_type == [".xml", ".mpp"]
+
+
+def test_uploader_mostra_ccx_quando_driver_disponivel(app):
+    if not _driver_disponivel():
+        pytest.skip("requer o driver ODBC do Microsoft Access instalado (Windows)")
+    assert app.sidebar.file_uploader[0].allowed_type == [".xml", ".mpp", ".ccx"]
 
 
 def test_seletor_peso_editado(app):

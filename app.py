@@ -14,7 +14,7 @@ from cronograma.checklist import avaliar_checklist as _avaliar_checklist_impl
 from cronograma.checklist import calcular_pontuacao
 from cronograma.curva_s import gerar_curva_s as _gerar_curva_s_impl
 from cronograma.i18n import formatar_data, formato_coluna_data, t, tf
-from cronograma.leitor_ccx import DriverAccessIndisponivelError, ler_ccx
+from cronograma.leitor_ccx import DriverAccessIndisponivelError, _driver_disponivel, ler_ccx
 from cronograma.leitor_mpp import MpxjIndisponivelError, ler_mpp
 from cronograma.leitor_xml import ArquivoInvalidoError, ler_xml
 from cronograma.metricas import (
@@ -233,15 +233,25 @@ def processar_arquivo(conteudo: bytes, nome_arquivo: str):
         os.unlink(caminho)
 
 
+# Suporte a .ccx exige o driver ODBC do Microsoft Access, algo que só existe no
+# Windows — nunca vai estar disponível na versão publicada (nuvem, Linux). Em vez de
+# oferecer a opção e depois falhar após o upload, ela nem aparece nesse ambiente.
+suporta_ccx = _driver_disponivel()
+
 st.sidebar.title(t("📁 Cronograma", idioma))
 arquivos = st.sidebar.file_uploader(
     t("Envie o(s) arquivo(s) do cronograma", idioma),
-    type=["xml", "mpp", "ccx"],
+    type=["xml", "mpp", "ccx"] if suporta_ccx else ["xml", "mpp"],
     accept_multiple_files=True,
     help=t(
-        "Arquivo .mpp do MS Project, .xml exportado via Arquivo > Salvar Como > XML, ou "
-        ".ccx do Concerto (ProChain, Corrente Crítica). "
-        "Envie mais de um arquivo para ver a aba de Portfólio.",
+        (
+            "Arquivo .mpp do MS Project, .xml exportado via Arquivo > Salvar Como > XML, ou "
+            ".ccx do Concerto (ProChain, Corrente Crítica). "
+            "Envie mais de um arquivo para ver a aba de Portfólio."
+        ) if suporta_ccx else (
+            "Arquivo .mpp do MS Project, ou .xml exportado via Arquivo > Salvar Como > XML. "
+            "Envie mais de um arquivo para ver a aba de Portfólio."
+        ),
         idioma,
     ),
 )
@@ -269,9 +279,14 @@ if not st.session_state.get("projetos"):
     st.title(t("📊 Gestão de Projetos", idioma))
     st.info(
         t(
-            "👈 Envie um arquivo **.xml** (exportado do MS Project), **.mpp** ou **.ccx** (Concerto) "
-            "na barra lateral para começar.\n\n"
-            "Para exportar o XML no MS Project: **Arquivo > Salvar Como**, escolha o tipo **XML**.",
+            (
+                "👈 Envie um arquivo **.xml** (exportado do MS Project), **.mpp** ou **.ccx** (Concerto) "
+                "na barra lateral para começar.\n\n"
+                "Para exportar o XML no MS Project: **Arquivo > Salvar Como**, escolha o tipo **XML**."
+            ) if suporta_ccx else (
+                "👈 Envie um arquivo **.xml** (exportado do MS Project) ou **.mpp** na barra lateral para começar.\n\n"
+                "Para exportar o XML no MS Project: **Arquivo > Salvar Como**, escolha o tipo **XML**."
+            ),
             idioma,
         )
     )
