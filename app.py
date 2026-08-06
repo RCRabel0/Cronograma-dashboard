@@ -1882,10 +1882,13 @@ with aba_fisico_financeiro:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
 
-        # st.dataframe (grade) não suporta célula mesclada (rowspan) de verdade — para
-        # que WBS/Tarefa/Status/Peso/Duração apareçam mesclados entre as linhas
-        # Planejado/Realizado do mesmo item, como numa planilha, a tabela é montada como
-        # HTML puro (com <td rowspan>) em vez de st.dataframe.
+        # st.dataframe (grade) não suporta célula mesclada (rowspan) nem congelamento de
+        # colunas de verdade. Testado manualmente: uma <table> com table-layout:fixed
+        # NÃO é confiável para colunas congeladas (o navegador redistribui a largura das
+        # colunas de forma desigual quando a soma excede o contêiner, desalinhando o
+        # position:sticky). CSS Grid não tem esse problema — cada coluna tem largura
+        # fixa de verdade via grid-template-columns, e position:sticky funciona de forma
+        # previsível em itens de grid. A tabela é montada como uma grade de <div>s.
         def _fmt_pct(v):
             return f"{v:.1f}%" if pd.notna(v) else ""
 
@@ -1907,79 +1910,77 @@ with aba_fisico_financeiro:
         for _largura in larguras_congeladas_ff:
             offsets_congelados_ff.append(_acumulado_ff)
             _acumulado_ff += _largura
+        largura_mes_ff = 70
 
-        def _congelar(indice_coluna: int) -> str:
-            return f' class="ff-frozen" style="left:{offsets_congelados_ff[indice_coluna]}px;width:{larguras_congeladas_ff[indice_coluna]}px"'
+        def _celula_congelada(indice_coluna: int, linha_grid: int, conteudo: str, rowspan: int = 1, extra: str = "", title: str = None) -> str:
+            left = offsets_congelados_ff[indice_coluna]
+            grid_col = indice_coluna + 1
+            estilo = f"grid-row:{linha_grid}/{linha_grid + rowspan};grid-column:{grid_col};position:sticky;left:{left}px;{extra}"
+            titulo_attr = f' title="{title}"' if title else ""
+            return f'<div class="ff-cell ff-frozen" style="{estilo}"{titulo_attr}>{conteudo}</div>'
 
-        linhas_html_ff = []
+        celulas_grid_ff = []
+        for idx_col, rotulo_col in enumerate(
+            ["WBS", t("Tarefa", idioma), t("Linha", idioma), t("Status", idioma), t("Peso (%)", idioma), t("Duração (dias)", idioma)]
+        ):
+            celulas_grid_ff.append(
+                _celula_congelada(idx_col, 1, escape(rotulo_col), extra="top:0;z-index:3;font-weight:600;")
+            )
+        for j, col_mes in enumerate(colunas_mes_ff):
+            grid_col = 7 + j
+            celulas_grid_ff.append(
+                f'<div class="ff-cell ff-mes-cabecalho" style="grid-row:1;grid-column:{grid_col};'
+                f'position:sticky;top:0;z-index:2;font-weight:600;">{escape(col_mes)}</div>'
+            )
+
+        linha_grid_atual = 2
         for _wbs, linhas_grupo in grupos_ff:
             n = len(linhas_grupo)
-            rowspan_attr = f' rowspan="{n}"' if n > 1 else ""
             primeira = linhas_grupo[0]
             cor = cores_status.get(primeira["Status"], "#5B8DB8")
+            nome_tarefa = escape(str(primeira["Tarefa"]))
+            celulas_grid_ff.append(_celula_congelada(0, linha_grid_atual, escape(str(primeira["WBS"])), rowspan=n))
+            celulas_grid_ff.append(_celula_congelada(1, linha_grid_atual, nome_tarefa, rowspan=n, title=nome_tarefa))
+            celulas_grid_ff.append(_celula_congelada(3, linha_grid_atual, escape(str(primeira["Status"])), rowspan=n))
+            celulas_grid_ff.append(_celula_congelada(4, linha_grid_atual, _fmt_pct(primeira["Peso (%)"]), rowspan=n))
+            celulas_grid_ff.append(_celula_congelada(5, linha_grid_atual, _fmt_dias(primeira["Duração (dias)"]), rowspan=n))
             for i, linha in enumerate(linhas_grupo):
-                celulas = []
-                if i == 0:
-                    nome_tarefa = escape(str(linha["Tarefa"]))
-                    celulas.append(f'<td{rowspan_attr}{_congelar(0)}>{escape(str(linha["WBS"]))}</td>')
-                    celulas.append(f'<td{rowspan_attr}{_congelar(1)} title="{nome_tarefa}">{nome_tarefa}</td>')
-                celulas.append(f'<td{_congelar(2)}>{escape(str(linha["Linha"]))}</td>')
-                if i == 0:
-                    celulas.append(f'<td{rowspan_attr}{_congelar(3)}>{escape(str(linha["Status"]))}</td>')
-                    celulas.append(f'<td{rowspan_attr}{_congelar(4)}>{_fmt_pct(linha["Peso (%)"])}</td>')
-                    celulas.append(f'<td{rowspan_attr}{_congelar(5)}>{_fmt_dias(linha["Duração (dias)"])}</td>')
-                for col_mes in colunas_mes_ff:
+                linha_grid = linha_grid_atual + i
+                celulas_grid_ff.append(_celula_congelada(2, linha_grid, escape(str(linha["Linha"]))))
+                for j, col_mes in enumerate(colunas_mes_ff):
+                    grid_col = 7 + j
                     valor_mes = linha[col_mes]
                     if pd.notna(valor_mes):
-                        celulas.append(
-                            f'<td class="ff-mes" style="background-color:{cor};color:#fff">'
-                            f'{_fmt_pct(valor_mes)}</td>'
+                        celulas_grid_ff.append(
+                            f'<div class="ff-cell ff-mes" style="grid-row:{linha_grid};grid-column:{grid_col};'
+                            f'background-color:{cor};color:#fff">{_fmt_pct(valor_mes)}</div>'
                         )
                     else:
-                        celulas.append('<td class="ff-mes"></td>')
-                linhas_html_ff.append("<tr>" + "".join(celulas) + "</tr>")
+                        celulas_grid_ff.append(
+                            f'<div class="ff-cell ff-mes" style="grid-row:{linha_grid};grid-column:{grid_col};"></div>'
+                        )
+            linha_grid_atual += n
 
-        cabecalho_ff = (
-            f'<tr><th{_congelar(0)}>WBS</th><th{_congelar(1)}>' + escape(t("Tarefa", idioma)) + "</th>"
-            f'<th{_congelar(2)}>' + escape(t("Linha", idioma)) + f'</th><th{_congelar(3)}>'
-            + escape(t("Status", idioma)) + f'</th><th{_congelar(4)}>' + escape(t("Peso (%)", idioma))
-            + f'</th><th{_congelar(5)}>' + escape(t("Duração (dias)", idioma)) + "</th>"
-            + "".join(
-                f'<th class="ff-mes" style="width:70px">{escape(col_mes)}</th>' for col_mes in colunas_mes_ff
-            )
-            + "</tr>"
+        template_colunas_ff = " ".join(f"{w}px" for w in larguras_congeladas_ff) + " " + " ".join(
+            f"{largura_mes_ff}px" for _ in colunas_mes_ff
         )
 
         st.html(
             "<style>"
             ".ff-scroll { max-height: 70vh; overflow: auto; }"
-            # table-layout:fixed é essencial aqui: sem ele, o navegador ignora as
-            # larguras declaradas (auto-ajusta pelo conteúdo), o que desalinha as
-            # colunas congeladas — o deslocamento (left) calculado em Python só bate com
-            # a renderização real quando cada coluna tem largura fixa e obedecida.
-            # border-collapse:collapse não é confiável junto com position:sticky em
-            # célula de tabela (gera frestas onde o conteúdo que rola por trás aparece)
-            # — usa border-collapse:separate, que renderiza cada célula com sua própria
-            # borda e cobre completamente o que está atrás.
-            ".ff-table { border-collapse: separate; border-spacing: 0; table-layout: fixed; "
-            "min-width: 100%; font-size: 0.85rem; }"
-            # box-sizing:border-box é obrigatório aqui: sem ele, padding e borda somam
-            # ALÉM da largura declarada (padrão content-box), e cada coluna renderiza
-            # mais larga do que o esperado — o erro se acumula a cada coluna congelada e
-            # desalinha o deslocamento (left) calculado em Python.
-            ".ff-table th, .ff-table td { box-sizing: border-box; border: 1px solid rgba(128,128,128,0.35); "
-            "padding: 4px 10px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }"
-            ".ff-table th { font-weight: 600; }"
-            ".ff-table td.ff-mes, .ff-table th.ff-mes { text-align: center; }"
+            f".ff-grid {{ display: grid; grid-template-columns: {template_colunas_ff}; "
+            "grid-auto-rows: min-content; width: max-content; font-size: 0.85rem; }"
+            ".ff-cell { border: 1px solid rgba(128,128,128,0.35); box-sizing: border-box; "
+            "padding: 4px 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; "
+            "display: flex; align-items: center; }"
+            ".ff-mes, .ff-mes-cabecalho { justify-content: center; text-align: center; }"
             # Congela a 1ª linha (cabeçalho) e as 6 primeiras colunas, como 'Freeze Panes'
             # do Excel — usa a cor de fundo do sistema (Canvas) para ficar opaco e se
             # adaptar automaticamente ao tema claro/escuro do navegador.
-            ".ff-table thead th { position: sticky; top: 0; z-index: 2; background-color: Canvas; }"
-            ".ff-frozen { position: sticky; z-index: 1; background-color: Canvas; }"
-            ".ff-table thead th.ff-frozen { z-index: 3; }"
+            ".ff-frozen, .ff-mes-cabecalho { background-color: Canvas; }"
+            ".ff-frozen { z-index: 1; }"
             "</style>"
-            '<div class="ff-scroll"><table class="ff-table"><thead>' + cabecalho_ff + "</thead><tbody>"
-            + "".join(linhas_html_ff) + "</tbody></table></div>"
+            '<div class="ff-scroll"><div class="ff-grid">' + "".join(celulas_grid_ff) + "</div></div>"
         )
 
 with aba_checklist:

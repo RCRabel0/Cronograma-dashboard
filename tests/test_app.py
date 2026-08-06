@@ -4,6 +4,7 @@ Cada teste sobe o app de verdade (sem navegador), envia arquivos pelo uploader
 e verifica que nenhuma exceção ocorre e que os elementos esperados aparecem.
 """
 
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -186,10 +187,11 @@ def test_aba_fisico_financeiro(app):
     rotulos_botoes = [db.label for db in aba.download_button]
     assert any("Físico-Financeiro" in r and "Excel" in r for r in rotulos_botoes)
 
-    # A tabela é montada como HTML puro (st.html) para permitir célula mesclada de
-    # verdade (rowspan) entre as linhas Planejado/Realizado do mesmo WBS.
-    corpo_html = next(el.proto.body for el in app.get("html") if "ff-table" in el.proto.body)
-    assert "<table" in corpo_html and "rowspan=" in corpo_html
+    # A tabela é montada como uma grade CSS (st.html + display:grid) para permitir
+    # célula mesclada de verdade (grid-row com span) entre as linhas Planejado/
+    # Realizado do mesmo WBS, com colunas/cabeçalho congelados via position:sticky.
+    corpo_html = next(el.proto.body for el in app.get("html") if "ff-grid" in el.proto.body)
+    assert "display: grid" in corpo_html and "position:sticky" in corpo_html
     for cabecalho in ("WBS", "Tarefa", "Linha", "Status", "Peso (%)", "Duração (dias)"):
         assert f">{cabecalho}<" in corpo_html
 
@@ -197,9 +199,13 @@ def test_aba_fisico_financeiro(app):
     assert "None" not in corpo_html
     assert "nan" not in corpo_html.lower()
 
-    # Cada grupo de WBS tem rowspan="2" (Planejado + Realizado mescladas em uma só
-    # célula de WBS/Tarefa/Status/Peso/Duração) — 'exemplo_cronograma.xml' tem 5 tarefas.
-    assert corpo_html.count('rowspan="2"') == 5 * 5
+    # Cada grupo de WBS tem 5 células com grid-row span=2 (Planejado + Realizado
+    # mescladas em uma só célula de WBS/Tarefa/Status/Peso/Duração) —
+    # 'exemplo_cronograma.xml' tem 5 tarefas.
+    spans_de_2 = sum(
+        1 for inicio, fim in re.findall(r"grid-row:(\d+)/(\d+)", corpo_html) if int(fim) - int(inicio) == 2
+    )
+    assert spans_de_2 == 5 * 5
 
 
 def test_aba_fisico_financeiro_filtro_ocultar_realizado(app):
@@ -209,9 +215,13 @@ def test_aba_fisico_financeiro_filtro_ocultar_realizado(app):
     checkbox_realizado.set_value(False).run(timeout=TIMEOUT)
     assert not app.exception
 
-    corpo_html = next(el.proto.body for el in app.get("html") if "ff-table" in el.proto.body)
+    corpo_html = next(el.proto.body for el in app.get("html") if "ff-grid" in el.proto.body)
     assert ">Realizado<" not in corpo_html
     assert corpo_html.count(">Planejado<") == 5
+    # Com uma única linha por WBS, não há mais o que mesclar — todo grid-row tem
+    # span 1 (fim - início == 1), nenhum span de 2 linhas sobrando.
+    spans = [int(fim) - int(inicio) for inicio, fim in re.findall(r"grid-row:(\d+)/(\d+)", corpo_html)]
+    assert spans and all(span == 1 for span in spans)
     # Com uma única linha por WBS, não há mais o que mesclar (rowspan="1" não existe
     # em HTML — cada tarefa deixa de precisar de rowspan nenhum).
     assert "rowspan=" not in corpo_html
