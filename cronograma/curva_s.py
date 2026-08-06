@@ -172,6 +172,7 @@ def gerar_tabela_fisico_financeiro(
     projeto: Projeto,
     data_status: date | None = None,
     metodo_peso: str | None = None,
+    nivel_maximo_wbs: int = 4,
 ) -> pd.DataFrame:
     """Monta o cronograma físico-financeiro clássico: uma linha 'Planejado' e uma linha
     'Realizado' por tarefa, com o % do peso de cada tarefa alocado em cada mês do
@@ -179,15 +180,15 @@ def gerar_tabela_fisico_financeiro(
     período de execução marcado mês a mês em vez de um gráfico de barras.
 
     O peso de cada tarefa é normalizado para % do peso total do cronograma. A coluna
-    'WBS' numera a hierarquia (até o 4º nível) na mesma ordem do arquivo original. A
-    coluna 'Crítica' identifica a tarefa de origem de cada par de linhas, para filtros
-    na UI.
+    'WBS' numera a hierarquia (até 'nivel_maximo_wbs' níveis) na mesma ordem do arquivo
+    original. As colunas 'Crítica', 'Atrasada' e 'Percentual Concluído' identificam a
+    tarefa de origem de cada par de linhas, para filtros e colorização na UI.
     """
     tarefas = projeto.tarefas_detalhe
     if data_status is None:
         data_status = projeto.data_status or date.today()
 
-    wbs_por_uid = _calcular_wbs(projeto.tarefas)
+    wbs_por_uid = _calcular_wbs(projeto.tarefas, nivel_maximo_wbs)
 
     tem_custo = projeto.tem_custo
     if metodo_peso is None:
@@ -221,11 +222,17 @@ def gerar_tabela_fisico_financeiro(
                 "WBS": wbs_por_uid.get(t.uid, ""),
                 "Tarefa": t.nome,
                 "Crítica": t.critica,
+                "Atrasada": t.atrasada,
+                "Percentual Concluído": t.percentual_concluido,
                 "Linha": rotulo,
                 "Peso (%)": peso_pct,
             }
             for mes in meses:
-                linha[mes.strftime("%b/%y")] = valores_mes.get(mes) or None
+                # Usa NaN (não None) para célula sem alocação — garante que a coluna
+                # inteira fique float64 mesmo quando nenhuma tarefa tem valor naquele
+                # mês, o que faz o NumberColumn do Streamlit exibir a célula em branco
+                # em vez do texto literal "None".
+                linha[mes.strftime("%b/%y")] = valores_mes.get(mes) or float("nan")
             linhas.append(linha)
 
     return pd.DataFrame(linhas)

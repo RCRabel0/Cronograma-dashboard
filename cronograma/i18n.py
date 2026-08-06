@@ -417,6 +417,7 @@ TRADUCOES: dict[str, str] = {
         "rows (Planned and Actual), with the % of the task's weight allocated to each "
         "month — the execution period appears marked month by month, instead of a bar chart.",
     "Mostrar linha Realizado": "Show Actual row",
+    "Nível máximo do WBS": "Maximum WBS level",
     "Não há tarefas com datas suficientes para montar o cronograma físico-financeiro.":
         "Not enough task dates to build the physical-financial schedule.",
     "Mostrando {limite} de {total} tarefas (priorizando as críticas). Use os filtros "

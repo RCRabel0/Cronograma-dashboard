@@ -74,8 +74,10 @@ def gerar_curva_s(projeto, data_status=None, percentual_concluido_alvo=None, met
 
 
 @st.cache_data(show_spinner=False)
-def gerar_tabela_fisico_financeiro(projeto, data_status=None, metodo_peso=None):
-    return _gerar_tabela_fisico_financeiro_impl(projeto, data_status, metodo_peso=metodo_peso)
+def gerar_tabela_fisico_financeiro(projeto, data_status=None, metodo_peso=None, nivel_maximo_wbs=4):
+    return _gerar_tabela_fisico_financeiro_impl(
+        projeto, data_status, metodo_peso=metodo_peso, nivel_maximo_wbs=nivel_maximo_wbs,
+    )
 
 
 @st.cache_data(show_spinner=False)
@@ -400,6 +402,37 @@ else:
     info_cols[2].caption(tf("**Data de status:** {v}", idioma, v=formatar_data(data_status, idioma)))
     info_cols[3].caption(tf("**Linhas de base salvas:** {v}", idioma, v=projeto.numero_baselines_salvas))
     info_cols[4].caption(tf("**Linha de base ativa:** {v}", idioma, v=_periodo_lb_ativa))
+
+def t_(texto):
+    return t(texto, idioma)
+
+
+def _classificar_status(percentual_concluido, atrasada, critica):
+    """Classificação de status usada tanto no Gantt quanto no Físico-Financeiro, para
+    que as duas visões usem exatamente as mesmas cores para o mesmo significado."""
+    if percentual_concluido >= 100:
+        return t_("Concluída")
+    if atrasada and critica:
+        return t_("Crítica atrasada")
+    if atrasada:
+        return t_("Atrasada")
+    if critica:
+        return t_("Crítica")
+    return t_("No prazo")
+
+
+def _status_tarefa(tarefa):
+    return _classificar_status(tarefa.percentual_concluido, tarefa.atrasada, tarefa.critica)
+
+
+cores_status = {
+    t_("Concluída"): "#2E8B57",
+    t_("No prazo"): "#5B8DB8",
+    t_("Crítica"): "#4A235A",
+    t_("Atrasada"): "#E67E22",
+    t_("Crítica atrasada"): "#C0392B",
+}
+
 
 def _ambiente_publicado() -> bool:
     """True quando rodando na versão publicada (nuvem) — detectado automaticamente pela
@@ -1572,28 +1605,6 @@ with aba_gantt:
         )[:limite_tarefas_gantt]
         tarefas_gantt.sort(key=lambda t: (t.inicio, t.id))
 
-    def t_(texto):
-        return t(texto, idioma)
-
-    def _status_tarefa(t):
-        if t.percentual_concluido >= 100:
-            return t_("Concluída")
-        if t.atrasada and t.critica:
-            return t_("Crítica atrasada")
-        if t.atrasada:
-            return t_("Atrasada")
-        if t.critica:
-            return t_("Crítica")
-        return t_("No prazo")
-
-    cores_status = {
-        t_("Concluída"): "#2E8B57",
-        t_("No prazo"): "#5B8DB8",
-        t_("Crítica"): "#4A235A",
-        t_("Atrasada"): "#E67E22",
-        t_("Crítica atrasada"): "#C0392B",
-    }
-
     if not tarefas_gantt:
         st.info(t("Nenhuma tarefa encontrada com os filtros selecionados (ou sem datas de início/término).", idioma))
     else:
@@ -1802,16 +1813,24 @@ with aba_fisico_financeiro:
         )
     )
 
-    col_ff1, col_ff2, col_ff3 = st.columns([2, 1, 1])
+    col_ff1, col_ff2, col_ff3, col_ff4 = st.columns([2, 1, 1, 1])
     busca_ff = col_ff1.text_input(t("Buscar tarefa pelo nome", idioma), key="ff_busca")
     somente_criticas_ff = col_ff2.checkbox(t("Somente críticas", idioma), key="ff_criticas")
     mostrar_realizado_ff = col_ff3.checkbox(t("Mostrar linha Realizado", idioma), value=True, key="ff_realizado")
+    nivel_maximo_wbs_ff = col_ff4.selectbox(
+        t("Nível máximo do WBS", idioma), options=[1, 2, 3, 4, 5, 6], index=3, key="ff_nivel_wbs",
+    )
 
-    df_ff = gerar_tabela_fisico_financeiro(projeto, data_status, metodo_peso)
+    df_ff = gerar_tabela_fisico_financeiro(projeto, data_status, metodo_peso, nivel_maximo_wbs_ff)
 
     if df_ff.empty:
         st.info(t("Não há tarefas com datas suficientes para montar o cronograma físico-financeiro.", idioma))
     else:
+        df_ff["Status"] = [
+            _classificar_status(pct, atrasada, critica)
+            for pct, atrasada, critica in zip(df_ff["Percentual Concluído"], df_ff["Atrasada"], df_ff["Crítica"])
+        ]
+
         if busca_ff:
             tarefas_encontradas_ff = {
                 tarefa for tarefa in df_ff["Tarefa"] if busca_ff.lower() in tarefa.lower()
@@ -1845,7 +1864,8 @@ with aba_fisico_financeiro:
                 )
             )
 
-        colunas_mes_ff = [c for c in df_ff.columns if c not in ("WBS", "Tarefa", "Crítica", "Linha", "Peso (%)")]
+        colunas_excluidas_ff = ("WBS", "Tarefa", "Crítica", "Atrasada", "Percentual Concluído", "Linha", "Peso (%)", "Status")
+        colunas_mes_ff = [c for c in df_ff.columns if c not in colunas_excluidas_ff]
         config_colunas_ff = {
             "WBS": st.column_config.TextColumn("WBS", width="small"),
             "Peso (%)": st.column_config.NumberColumn(t("Peso (%)", idioma), format="%.1f%%"),
@@ -1854,7 +1874,7 @@ with aba_fisico_financeiro:
             config_colunas_ff[col_mes] = st.column_config.NumberColumn(col_mes, format="%.1f%%")
 
         def _estilo_barra_ff(linha):
-            cor = "#2b2b2b" if linha["Linha"] == "Planejado" else "#8a8a8a"
+            cor = cores_status.get(linha["Status"], "#5B8DB8")
             return [
                 f"background-color: {cor}; color: white" if col in colunas_mes_ff and pd.notna(linha[col]) else ""
                 for col in linha.index
@@ -1864,13 +1884,15 @@ with aba_fisico_financeiro:
             df_ff.style.apply(_estilo_barra_ff, axis=1),
             hide_index=True,
             width="stretch",
-            column_order=["WBS", "Tarefa", "Linha", "Peso (%)"] + colunas_mes_ff,
+            column_order=["WBS", "Tarefa", "Linha", "Status", "Peso (%)"] + colunas_mes_ff,
             column_config=config_colunas_ff,
         )
 
         st.download_button(
             t("⬇️ Baixar Físico-Financeiro (Excel)", idioma),
-            data=gerar_excel_tabela(df_ff.drop(columns=["Crítica"]), "Fisico-Financeiro"),
+            data=gerar_excel_tabela(
+                df_ff.drop(columns=["Crítica", "Atrasada", "Percentual Concluído"]), "Fisico-Financeiro",
+            ),
             file_name=f"fisico_financeiro_{projeto.nome.strip().replace(' ', '_')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )

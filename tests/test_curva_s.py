@@ -48,13 +48,34 @@ def test_metodo_peso_editado_muda_total(projeto_com_peso):
 
 def test_ff_estrutura_e_colunas(projeto_com_custo):
     df = gerar_tabela_fisico_financeiro(projeto_com_custo, DATA_STATUS)
-    assert {"WBS", "Tarefa", "Crítica", "Linha", "Peso (%)"} <= set(df.columns)
+    assert {"WBS", "Tarefa", "Crítica", "Atrasada", "Percentual Concluído", "Linha", "Peso (%)"} <= set(df.columns)
     assert set(df["Linha"].unique()) == {"Planejado", "Realizado"}
     # Duas linhas (Planejado + Realizado) por tarefa de detalhe.
     assert len(df) == 2 * len(projeto_com_custo.tarefas_detalhe)
     # 'exemplo_cronograma.xml' é um cronograma plano (todas as tarefas no nível 1), então
     # o WBS de cada uma é um único número sequencial, sem pontos.
     assert all("." not in wbs for wbs in df["WBS"])
+
+
+def test_ff_celula_sem_alocacao_fica_nan_nao_none(projeto_com_custo):
+    # Bug corrigido: quando NENHUMA tarefa tem alocação num mês, a coluna inteira ficava
+    # com dtype 'object' cheio de None (em vez de float64 com NaN), e o Streamlit exibia
+    # o texto literal "None" na célula em vez de deixá-la em branco.
+    df = gerar_tabela_fisico_financeiro(projeto_com_custo, DATA_STATUS)
+    colunas_mes = [
+        c for c in df.columns
+        if c not in ("WBS", "Tarefa", "Crítica", "Atrasada", "Percentual Concluído", "Linha", "Peso (%)")
+    ]
+    for coluna in colunas_mes:
+        assert df[coluna].dtype.kind == "f", f"coluna {coluna} não é float64: {df[coluna].dtype}"
+
+
+def test_ff_nivel_maximo_wbs_configuravel(projeto_com_custo):
+    df_nivel_1 = gerar_tabela_fisico_financeiro(projeto_com_custo, DATA_STATUS, nivel_maximo_wbs=1)
+    # 'exemplo_cronograma.xml' é plano (nível 1), então mesmo limitando a 1 nível o WBS
+    # continua um único número sequencial — o teste de achatamento real está em
+    # test_ff_wbs_numera_hierarquia_ate_4_niveis, que usa uma hierarquia sintética.
+    assert all("." not in wbs for wbs in df_nivel_1["WBS"])
 
 
 def test_ff_peso_soma_100(projeto_com_custo):
@@ -65,7 +86,10 @@ def test_ff_peso_soma_100(projeto_com_custo):
 
 def test_ff_planejado_soma_bate_peso_da_tarefa(projeto_com_custo):
     df = gerar_tabela_fisico_financeiro(projeto_com_custo, DATA_STATUS)
-    colunas_mes = [c for c in df.columns if c not in ("WBS", "Tarefa", "Crítica", "Linha", "Peso (%)")]
+    colunas_mes = [
+        c for c in df.columns
+        if c not in ("WBS", "Tarefa", "Crítica", "Atrasada", "Percentual Concluído", "Linha", "Peso (%)")
+    ]
     planejado = df[df["Linha"] == "Planejado"]
     for _, linha in planejado.iterrows():
         soma_meses = sum(v for v in (linha[c] for c in colunas_mes) if v is not None and v == v)
@@ -74,7 +98,10 @@ def test_ff_planejado_soma_bate_peso_da_tarefa(projeto_com_custo):
 
 def test_ff_realizado_reflete_percentual_concluido(projeto_com_custo):
     df = gerar_tabela_fisico_financeiro(projeto_com_custo, DATA_STATUS)
-    colunas_mes = [c for c in df.columns if c not in ("WBS", "Tarefa", "Crítica", "Linha", "Peso (%)")]
+    colunas_mes = [
+        c for c in df.columns
+        if c not in ("WBS", "Tarefa", "Crítica", "Atrasada", "Percentual Concluído", "Linha", "Peso (%)")
+    ]
     tarefas_por_nome = {t.nome: t for t in projeto_com_custo.tarefas_detalhe}
     realizado = df[df["Linha"] == "Realizado"]
     for _, linha in realizado.iterrows():
