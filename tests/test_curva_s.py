@@ -120,7 +120,7 @@ def test_ff_projeto_sem_datas_retorna_vazio():
     assert df.empty
 
 
-def test_ff_wbs_numera_hierarquia_ate_4_niveis():
+def _projeto_hierarquico():
     from cronograma.modelos import Projeto, Tarefa
 
     def _t(uid, nome, nivel, resumo=False, **kwargs):
@@ -129,31 +129,70 @@ def test_ff_wbs_numera_hierarquia_ate_4_niveis():
     tarefas = [
         _t("1", "Fase 1", 1, resumo=True),
         _t("2", "Sub 1.1", 2, resumo=True),
-        _t("3", "Item 1.1.1", 3, resumo=True),
         _t(
-            "4", "Folha 1.1.1.1", 4,
+            "3", "Ativ 1.1.1", 3,
             inicio=date(2026, 1, 1), termino=date(2026, 1, 10),
             inicio_linha_base=date(2026, 1, 1), termino_linha_base=date(2026, 1, 10),
-            duracao_linha_base_horas=80,
-        ),
-        # Um 5º nível deve ser "achatado" no 4º (limite de nivel_maximo=4).
-        _t(
-            "5", "Neta 1.1.1.1.1", 5,
-            inicio=date(2026, 1, 10), termino=date(2026, 1, 15),
-            inicio_linha_base=date(2026, 1, 10), termino_linha_base=date(2026, 1, 15),
-            duracao_linha_base_horas=40,
+            inicio_real=date(2026, 1, 1), termino_real=date(2026, 1, 10),
+            duracao_linha_base_horas=60, percentual_concluido=100,
         ),
         _t(
-            "6", "Item 1.1.2", 3,
-            inicio=date(2026, 1, 15), termino=date(2026, 1, 20),
-            inicio_linha_base=date(2026, 1, 15), termino_linha_base=date(2026, 1, 20),
-            duracao_linha_base_horas=40,
+            "4", "Ativ 1.1.2", 3,
+            inicio=date(2026, 1, 10), termino=date(2026, 1, 20),
+            inicio_linha_base=date(2026, 1, 10), termino_linha_base=date(2026, 1, 20),
+            inicio_real=date(2026, 1, 10), termino_real=date(2026, 1, 15),
+            duracao_linha_base_horas=40, percentual_concluido=50,
+        ),
+        _t(
+            "5", "Sub 1.2", 2,
+            inicio=date(2026, 1, 20), termino=date(2026, 1, 31),
+            inicio_linha_base=date(2026, 1, 20), termino_linha_base=date(2026, 1, 31),
+            duracao_linha_base_horas=100, percentual_concluido=0,
         ),
     ]
-    projeto = Projeto(nome="Hierárquico", tarefas=tarefas)
-    df = gerar_tabela_fisico_financeiro(projeto, date(2026, 1, 12))
+    return Projeto(nome="Hierárquico", tarefas=tarefas)
 
+
+def test_ff_wbs_numera_hierarquia_completa_sem_achatamento():
+    df = gerar_tabela_fisico_financeiro(_projeto_hierarquico(), date(2026, 1, 31), nivel_maximo_wbs=3)
     wbs_por_tarefa = dict(zip(df["Tarefa"], df["WBS"]))
-    assert wbs_por_tarefa["Folha 1.1.1.1"] == "1.1.1.1"
-    assert wbs_por_tarefa["Neta 1.1.1.1.1"] == "1.1.1.2"
-    assert wbs_por_tarefa["Item 1.1.2"] == "1.1.2"
+    assert wbs_por_tarefa["Fase 1"] == "1"
+    assert wbs_por_tarefa["Sub 1.1"] == "1.1"
+    assert wbs_por_tarefa["Ativ 1.1.1"] == "1.1.1"
+    assert wbs_por_tarefa["Ativ 1.1.2"] == "1.1.2"
+    assert wbs_por_tarefa["Sub 1.2"] == "1.2"
+
+
+def test_ff_nivel_1_mostra_so_a_raiz_com_peso_total():
+    df = gerar_tabela_fisico_financeiro(_projeto_hierarquico(), date(2026, 1, 31), nivel_maximo_wbs=1)
+    assert set(df["WBS"]) == {"1"}
+    assert df[df["Linha"] == "Planejado"]["Peso (%)"].iloc[0] == pytest.approx(100.0)
+
+
+def test_ff_nivel_2_acumula_niveis_1_e_2():
+    # Pedido do usuário: selecionar o nível 2 tem que mostrar os níveis 1 E 2 juntos
+    # (acumulado), não só o nível 2 isolado.
+    df = gerar_tabela_fisico_financeiro(_projeto_hierarquico(), date(2026, 1, 31), nivel_maximo_wbs=2)
+    assert set(df["WBS"]) == {"1", "1.1", "1.2"}
+
+    peso_por_wbs = df[df["Linha"] == "Planejado"].set_index("WBS")["Peso (%)"]
+    # Sub 1.1 (peso 30+20=50) e Sub 1.2 (peso 100) somam os pesos de "Ativ 1.1.1" (30%),
+    # "Ativ 1.1.2" (20%) e "Sub 1.2" (50%) sobre o total de 200 (60+40+100).
+    assert peso_por_wbs["1.1"] == pytest.approx(50.0)
+    assert peso_por_wbs["1.2"] == pytest.approx(50.0)
+    assert peso_por_wbs["1"] == pytest.approx(100.0)
+
+
+def test_ff_nivel_3_mostra_tudo_e_resumo_agrega_filhos():
+    df = gerar_tabela_fisico_financeiro(_projeto_hierarquico(), date(2026, 1, 31), nivel_maximo_wbs=3)
+    assert set(df["WBS"]) == {"1", "1.1", "1.1.1", "1.1.2", "1.2"}
+
+    # % Concluído agregado: Ativ 1.1.1 (peso 30, 100% concluída) + Ativ 1.1.2 (peso 20,
+    # 50% concluída = 10 realizado) + Sub 1.2 (peso 50, 0% concluída) = 40 realizado
+    # sobre 100 de peso total da Fase 1 -> 40%.
+    linha_fase1 = df[(df["WBS"] == "1") & (df["Linha"] == "Planejado")].iloc[0]
+    assert linha_fase1["Percentual Concluído"] == pytest.approx(40.0, abs=0.1)
+
+    linha_sub11 = df[(df["WBS"] == "1.1") & (df["Linha"] == "Planejado")].iloc[0]
+    # Sub 1.1 agrega só Ativ 1.1.1 (30, 100%) e Ativ 1.1.2 (20, 50%=10) -> 40/50 = 80%.
+    assert linha_sub11["Percentual Concluído"] == pytest.approx(80.0, abs=0.1)

@@ -1,3 +1,4 @@
+from collections import defaultdict
 from datetime import date
 
 import pandas as pd
@@ -149,16 +150,16 @@ def _distribuir_por_mes(
     return resultado
 
 
-def _calcular_wbs(tarefas_todas: list, nivel_maximo: int = 4) -> dict:
+def _calcular_wbs(tarefas_todas: list) -> dict:
     """Gera a numeração WBS (1, 1.1, 1.1.1, 1.1.1.1...) por posição na estrutura de
     tópicos (nivel_esquema), na ordem em que as tarefas aparecem no arquivo — o mesmo
-    algoritmo que o MS Project usa para numerar automaticamente, limitado a
-    'nivel_maximo' níveis (tarefas mais profundas repetem o código do último nível
-    contado, em vez de gerar um 5º segmento)."""
+    algoritmo que o MS Project usa para numerar automaticamente. Não há limite de
+    profundidade aqui: quem controla até que nível aparece na tabela é o filtro por
+    nível em 'gerar_tabela_fisico_financeiro'."""
     contadores: list[int] = []
     wbs_por_uid: dict = {}
     for t in tarefas_todas:
-        nivel = min(max(t.nivel_esquema, 1), nivel_maximo)
+        nivel = max(t.nivel_esquema, 1)
         if nivel > len(contadores):
             contadores.extend([0] * (nivel - len(contadores)))
         else:
@@ -166,6 +167,21 @@ def _calcular_wbs(tarefas_todas: list, nivel_maximo: int = 4) -> dict:
         contadores[nivel - 1] += 1
         wbs_por_uid[t.uid] = ".".join(str(c) for c in contadores)
     return wbs_por_uid
+
+
+def _construir_pais(tarefas_todas: list) -> dict:
+    """Mapeia uid -> uid da tarefa-pai imediata na estrutura de tópicos, a partir do
+    nivel_esquema e da ordem do arquivo (mesma lógica de pilha usada em '_calcular_wbs').
+    Tarefas de nível 1 (ou sem pai visível) mapeiam para None."""
+    pilha: list[tuple] = []
+    pai_por_uid: dict = {}
+    for t in tarefas_todas:
+        nivel = max(t.nivel_esquema, 1)
+        while pilha and pilha[-1][0] >= nivel:
+            pilha.pop()
+        pai_por_uid[t.uid] = pilha[-1][1] if pilha else None
+        pilha.append((nivel, t.uid))
+    return pai_por_uid
 
 
 def gerar_tabela_fisico_financeiro(
@@ -179,25 +195,32 @@ def gerar_tabela_fisico_financeiro(
     cronograma — o formato de planilha (tarefas x meses) usado em obras/EPC, com o
     período de execução marcado mês a mês em vez de um gráfico de barras.
 
-    O peso de cada tarefa é normalizado para % do peso total do cronograma. A coluna
-    'WBS' numera a hierarquia (até 'nivel_maximo_wbs' níveis) na mesma ordem do arquivo
-    original. As colunas 'Crítica', 'Atrasada' e 'Percentual Concluído' identificam a
-    tarefa de origem de cada par de linhas, para filtros e colorização na UI.
+    'nivel_maximo_wbs' mostra a hierarquia de forma acumulada: ao escolher o nível N,
+    aparecem as tarefas de resumo (fases/grupos) e de detalhe de TODOS os níveis de 1
+    até N — cada tarefa de resumo com peso, % concluído e distribuição mensal agregados
+    (somados) a partir de todas as suas tarefas-filha, não apenas as diretas, do mesmo
+    jeito que uma planilha físico-financeira tradicional mostra tanto o total da fase
+    quanto o detalhe de cada atividade. Tarefas mais profundas que N ficam representadas
+    pelo resumo ancestral visível, sem serem exibidas como linha própria.
+
+    O peso de cada tarefa é normalizado para % do peso total do cronograma (sempre
+    calculado só a partir das tarefas de detalhe, para não contar duas vezes o peso já
+    somado nos resumos). A coluna 'WBS' numera a hierarquia completa na mesma ordem do
+    arquivo original. As colunas 'Crítica' e 'Atrasada' também são agregadas (verdadeiro
+    se qualquer tarefa-filha for crítica/atrasada), para filtros e colorização na UI.
     """
-    tarefas = projeto.tarefas_detalhe
+    tarefas_detalhe = projeto.tarefas_detalhe
     if data_status is None:
         data_status = projeto.data_status or date.today()
-
-    wbs_por_uid = _calcular_wbs(projeto.tarefas, nivel_maximo_wbs)
 
     tem_custo = projeto.tem_custo
     if metodo_peso is None:
         metodo_peso = "custo" if tem_custo else "duracao"
 
-    peso_total = sum(peso_tarefa(t, metodo_peso, tem_custo) for t in tarefas) or 1.0
+    peso_total = sum(peso_tarefa(t, metodo_peso, tem_custo) for t in tarefas_detalhe) or 1.0
 
     datas_relevantes = []
-    for t in tarefas:
+    for t in tarefas_detalhe:
         datas_relevantes += [t.inicio_linha_base, t.termino_linha_base, t.inicio, t.termino]
     datas_relevantes = [d for d in datas_relevantes if d is not None]
     if not datas_relevantes:
@@ -205,8 +228,16 @@ def gerar_tabela_fisico_financeiro(
 
     meses = pd.period_range(min(datas_relevantes), max(datas_relevantes), freq="M")
 
-    linhas = []
-    for t in tarefas:
+    wbs_por_uid = _calcular_wbs(projeto.tarefas)
+    pai_por_uid = _construir_pais(projeto.tarefas)
+
+    peso_agregado: dict = defaultdict(float)
+    planejado_agregado: dict = defaultdict(lambda: defaultdict(float))
+    realizado_agregado: dict = defaultdict(lambda: defaultdict(float))
+    critica_agregada: dict = defaultdict(bool)
+    atrasada_agregada: dict = defaultdict(bool)
+
+    for t in tarefas_detalhe:
         peso_pct = peso_tarefa(t, metodo_peso, tem_custo) / peso_total * 100
 
         planejado_mensal = _distribuir_por_mes(
@@ -217,13 +248,37 @@ def gerar_tabela_fisico_financeiro(
         fim_realizado = t.termino_real or (min(t.termino, data_status) if t.termino else data_status)
         realizado_mensal = _distribuir_por_mes(inicio_realizado, fim_realizado, valor_realizado, meses)
 
+        # Soma a contribuição da tarefa em si e em toda a cadeia de ancestrais (pai,
+        # avô...), para que cada resumo visível carregue o total de todas as suas
+        # tarefas-filha, não só as diretas.
+        uid = t.uid
+        while uid is not None:
+            peso_agregado[uid] += peso_pct
+            for mes, valor in planejado_mensal.items():
+                planejado_agregado[uid][mes] += valor
+            for mes, valor in realizado_mensal.items():
+                realizado_agregado[uid][mes] += valor
+            critica_agregada[uid] = critica_agregada[uid] or t.critica
+            atrasada_agregada[uid] = atrasada_agregada[uid] or t.atrasada
+            uid = pai_por_uid.get(uid)
+
+    tarefas_visiveis = [t for t in projeto.tarefas if 1 <= t.nivel_esquema <= nivel_maximo_wbs]
+
+    linhas = []
+    for t in tarefas_visiveis:
+        peso_pct = peso_agregado.get(t.uid, 0.0)
+        planejado_mensal = planejado_agregado.get(t.uid, {})
+        realizado_mensal = realizado_agregado.get(t.uid, {})
+        realizado_total = sum(realizado_mensal.values())
+        pct_concluido = (realizado_total / peso_pct * 100) if peso_pct > 0 else 0.0
+
         for rotulo, valores_mes in (("Planejado", planejado_mensal), ("Realizado", realizado_mensal)):
             linha = {
                 "WBS": wbs_por_uid.get(t.uid, ""),
                 "Tarefa": t.nome,
-                "Crítica": t.critica,
-                "Atrasada": t.atrasada,
-                "Percentual Concluído": t.percentual_concluido,
+                "Crítica": critica_agregada.get(t.uid, False),
+                "Atrasada": atrasada_agregada.get(t.uid, False),
+                "Percentual Concluído": pct_concluido,
                 "Linha": rotulo,
                 "Peso (%)": peso_pct,
             }
