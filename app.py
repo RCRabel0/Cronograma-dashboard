@@ -1963,7 +1963,11 @@ with aba_fisico_financeiro:
             # borda e cobre completamente o que está atrás.
             ".ff-table { border-collapse: separate; border-spacing: 0; table-layout: fixed; "
             "min-width: 100%; font-size: 0.85rem; }"
-            ".ff-table th, .ff-table td { border: 1px solid rgba(128,128,128,0.35); "
+            # box-sizing:border-box é obrigatório aqui: sem ele, padding e borda somam
+            # ALÉM da largura declarada (padrão content-box), e cada coluna renderiza
+            # mais larga do que o esperado — o erro se acumula a cada coluna congelada e
+            # desalinha o deslocamento (left) calculado em Python.
+            ".ff-table th, .ff-table td { box-sizing: border-box; border: 1px solid rgba(128,128,128,0.35); "
             "padding: 4px 10px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }"
             ".ff-table th { font-weight: 600; }"
             ".ff-table td.ff-mes, .ff-table th.ff-mes { text-align: center; }"
