@@ -407,6 +407,28 @@ TRADUCOES: dict[str, str] = {
     "Predecessoras": "Predecessors",
     "⬇️ Baixar relatório do Gantt (Excel)": "⬇️ Download Gantt report (Excel)",
 
+    # --- Físico-Financeiro ---
+    "📆 Físico-Financeiro": "📆 Physical-Financial",
+    "Cronograma Físico-Financeiro": "Physical-Financial Schedule",
+    "Formato clássico de planilha usada em obras/EPC: cada tarefa em duas linhas "
+    "(Planejado e Realizado), com o % do peso da tarefa alocado em cada mês — o "
+    "período de execução aparece marcado mês a mês, em vez de um gráfico de barras.":
+        "Classic spreadsheet format used in construction/EPC projects: each task in two "
+        "rows (Planned and Actual), with the % of the task's weight allocated to each "
+        "month — the execution period appears marked month by month, instead of a bar chart.",
+    "Mostrar linha Realizado": "Show Actual row",
+    "Não há tarefas com datas suficientes para montar o cronograma físico-financeiro.":
+        "Not enough task dates to build the physical-financial schedule.",
+    "Mostrando {limite} de {total} tarefas (priorizando as críticas). Use os filtros "
+    "acima para ver as demais.":
+        "Showing {limite} of {total} tasks (prioritizing critical ones). Use the filters "
+        "above to see the rest.",
+    "Peso (%)": "Weight (%)",
+    "Linha": "Row",
+    "Planejado": "Planned",
+    "Realizado": "Actual",
+    "⬇️ Baixar Físico-Financeiro (Excel)": "⬇️ Download Physical-Financial (Excel)",
+
     # --- Checklist ---
     "Checklist de Qualidade do Cronograma": "Schedule Quality Checklist",
     "Itens avaliados automaticamente a partir dos dados do arquivo.":

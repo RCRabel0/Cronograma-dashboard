@@ -27,6 +27,12 @@ def _ler(caminho: Path) -> bytes:
     return caminho.read_bytes()
 
 
+def _aba_por_rotulo(app_test, texto: str):
+    # Busca a aba pelo rótulo em vez de por índice fixo — o índice muda conforme
+    # _ambiente_publicado() esconde ou não a aba Corrente Crítica.
+    return next(aba for aba in app_test.tabs if texto in aba.proto.label)
+
+
 @pytest.fixture()
 def app():
     at = AppTest.from_file(APP, default_timeout=TIMEOUT)
@@ -172,6 +178,28 @@ def test_aba_corrente_critica(app):
     # ser sintetizado via Monte Carlo — a legenda correspondente deve aparecer.
     textos_caption = " ".join(c.value for c in aba.caption)
     assert "estimado a partir da simulação de Monte Carlo" in textos_caption
+
+
+def test_aba_fisico_financeiro(app):
+    _upload(app, "exemplo.xml", _ler(RAIZ / "exemplo_cronograma.xml"))
+    aba = _aba_por_rotulo(app, "Físico-Financeiro")
+    assert aba.dataframe
+    colunas = aba.dataframe[0].value.columns
+    assert {"Tarefa", "Linha", "Peso (%)"} <= set(colunas)
+    assert set(aba.dataframe[0].value["Linha"].unique()) == {"Planejado", "Realizado"}
+    rotulos_botoes = [db.label for db in aba.download_button]
+    assert any("Físico-Financeiro" in r and "Excel" in r for r in rotulos_botoes)
+
+
+def test_aba_fisico_financeiro_filtro_ocultar_realizado(app):
+    _upload(app, "exemplo.xml", _ler(RAIZ / "exemplo_cronograma.xml"))
+    aba = _aba_por_rotulo(app, "Físico-Financeiro")
+    checkbox_realizado = next(cb for cb in aba.checkbox if "Realizado" in cb.label)
+    checkbox_realizado.set_value(False).run(timeout=TIMEOUT)
+    assert not app.exception
+
+    aba_depois = _aba_por_rotulo(app, "Físico-Financeiro")
+    assert set(aba_depois.dataframe[0].value["Linha"].unique()) == {"Planejado"}
 
 
 @pytest.mark.skipif(

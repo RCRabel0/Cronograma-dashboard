@@ -14,6 +14,7 @@ import streamlit as st
 from cronograma.checklist import avaliar_checklist as _avaliar_checklist_impl
 from cronograma.checklist import calcular_pontuacao
 from cronograma.curva_s import gerar_curva_s as _gerar_curva_s_impl
+from cronograma.curva_s import gerar_tabela_fisico_financeiro as _gerar_tabela_fisico_financeiro_impl
 from cronograma.i18n import formatar_data, formato_coluna_data, t, tf
 from cronograma.leitor_ccx import DriverAccessIndisponivelError, _driver_disponivel, ler_ccx
 from cronograma.leitor_mpp import MpxjIndisponivelError, ler_mpp
@@ -70,6 +71,11 @@ def gerar_curva_s(projeto, data_status=None, percentual_concluido_alvo=None, met
         percentual_concluido_alvo=percentual_concluido_alvo,
         metodo_peso=metodo_peso,
     )
+
+
+@st.cache_data(show_spinner=False)
+def gerar_tabela_fisico_financeiro(projeto, data_status=None, metodo_peso=None):
+    return _gerar_tabela_fisico_financeiro_impl(projeto, data_status, metodo_peso=metodo_peso)
 
 
 @st.cache_data(show_spinner=False)
@@ -417,6 +423,7 @@ _nomes_abas += [
     t("📉 Curva S", idioma),
     t("✅ Tarefas", idioma),
     t("📅 Gantt", idioma),
+    t("📆 Físico-Financeiro", idioma),
     t("📋 Checklist de Qualidade", idioma),
     t("👥 Recursos", idioma),
     t("📤 Exportar", idioma),
@@ -427,7 +434,8 @@ aba_status = next(_abas_iter)
 aba_simulacao = next(_abas_iter)
 aba_corrente_critica = next(_abas_iter) if not _publicado else None
 (
-    aba_resumo, aba_curva, aba_tarefas, aba_gantt, aba_checklist, aba_recursos, aba_exportar,
+    aba_resumo, aba_curva, aba_tarefas, aba_gantt, aba_fisico_financeiro, aba_checklist,
+    aba_recursos, aba_exportar,
 ) = _abas_iter
 
 with aba_portfolio:
@@ -1780,6 +1788,81 @@ with aba_gantt:
             t("⬇️ Baixar relatório do Gantt (Excel)", idioma),
             data=gerar_excel_tabela(df_relatorio_gantt, "Gantt"),
             file_name=f"gantt_{projeto.nome.strip().replace(' ', '_')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
+with aba_fisico_financeiro:
+    st.subheader(t("Cronograma Físico-Financeiro", idioma))
+    st.caption(
+        t(
+            "Formato clássico de planilha usada em obras/EPC: cada tarefa em duas linhas "
+            "(Planejado e Realizado), com o % do peso da tarefa alocado em cada mês — o "
+            "período de execução aparece marcado mês a mês, em vez de um gráfico de barras.",
+            idioma,
+        )
+    )
+
+    col_ff1, col_ff2, col_ff3 = st.columns([2, 1, 1])
+    busca_ff = col_ff1.text_input(t("Buscar tarefa pelo nome", idioma), key="ff_busca")
+    somente_criticas_ff = col_ff2.checkbox(t("Somente críticas", idioma), key="ff_criticas")
+    mostrar_realizado_ff = col_ff3.checkbox(t("Mostrar linha Realizado", idioma), value=True, key="ff_realizado")
+
+    df_ff = gerar_tabela_fisico_financeiro(projeto, data_status, metodo_peso)
+
+    if df_ff.empty:
+        st.info(t("Não há tarefas com datas suficientes para montar o cronograma físico-financeiro.", idioma))
+    else:
+        if busca_ff:
+            tarefas_encontradas_ff = {
+                tarefa for tarefa in df_ff["Tarefa"] if busca_ff.lower() in tarefa.lower()
+            }
+            df_ff = df_ff[df_ff["Tarefa"].isin(tarefas_encontradas_ff)]
+        if somente_criticas_ff:
+            df_ff = df_ff[df_ff["Crítica"]]
+        if not mostrar_realizado_ff:
+            df_ff = df_ff[df_ff["Linha"] != "Realizado"]
+
+        # Em cronogramas muito grandes, uma linha por tarefa (x2, Planejado/Realizado)
+        # deixa a tabela lenta de rolar — limita, priorizando as tarefas críticas.
+        limite_tarefas_ff = 300
+        tarefas_unicas_ff = df_ff["Tarefa"].unique()
+        tarefas_ff_ocultadas = 0
+        if len(tarefas_unicas_ff) > limite_tarefas_ff:
+            tarefas_ff_ocultadas = len(tarefas_unicas_ff) - limite_tarefas_ff
+            criticidade_por_tarefa = df_ff.groupby("Tarefa")["Crítica"].any()
+            tarefas_mantidas_ff = set(
+                criticidade_por_tarefa.sort_values(ascending=False).index[:limite_tarefas_ff]
+            )
+            df_ff = df_ff[df_ff["Tarefa"].isin(tarefas_mantidas_ff)]
+
+        if tarefas_ff_ocultadas:
+            st.caption(
+                tf(
+                    "Mostrando {limite} de {total} tarefas (priorizando as críticas). Use os filtros "
+                    "acima para ver as demais.",
+                    idioma, limite=limite_tarefas_ff, total=limite_tarefas_ff + tarefas_ff_ocultadas,
+                )
+            )
+
+        colunas_mes_ff = [c for c in df_ff.columns if c not in ("Tarefa", "Crítica", "Linha", "Peso (%)")]
+        config_colunas_ff = {
+            "Peso (%)": st.column_config.NumberColumn(t("Peso (%)", idioma), format="%.1f%%"),
+        }
+        for col_mes in colunas_mes_ff:
+            config_colunas_ff[col_mes] = st.column_config.NumberColumn(col_mes, format="%.1f%%")
+
+        st.dataframe(
+            df_ff,
+            hide_index=True,
+            width="stretch",
+            column_order=["Tarefa", "Linha", "Peso (%)"] + colunas_mes_ff,
+            column_config=config_colunas_ff,
+        )
+
+        st.download_button(
+            t("⬇️ Baixar Físico-Financeiro (Excel)", idioma),
+            data=gerar_excel_tabela(df_ff.drop(columns=["Crítica"]), "Fisico-Financeiro"),
+            file_name=f"fisico_financeiro_{projeto.nome.strip().replace(' ', '_')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
 

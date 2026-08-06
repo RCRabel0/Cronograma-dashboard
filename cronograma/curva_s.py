@@ -121,3 +121,83 @@ def gerar_curva_s(
     )
     df.index.name = "Data"
     return df
+
+
+def _distribuir_por_mes(
+    inicio: date | None, fim: date | None, valor_total: float, meses: pd.PeriodIndex,
+) -> dict:
+    """Distribui 'valor_total' proporcionalmente aos dias de cada mês dentro de
+    [inicio, fim] — a mesma premissa de distribuição uniforme por dia usada em
+    '_distribuir', só que agregada por mês em vez de acumulada por dia."""
+    resultado: dict = {}
+    if inicio is None or fim is None or valor_total == 0:
+        return resultado
+    if fim < inicio:
+        inicio, fim = fim, inicio
+    dias_totais = (fim - inicio).days + 1
+    if dias_totais <= 0:
+        return resultado
+    valor_diario = valor_total / dias_totais
+    for mes in meses:
+        inicio_mes = mes.start_time.date()
+        fim_mes = mes.end_time.date()
+        overlap_inicio = max(inicio, inicio_mes)
+        overlap_fim = min(fim, fim_mes)
+        dias_no_mes = (overlap_fim - overlap_inicio).days + 1
+        if dias_no_mes > 0:
+            resultado[mes] = valor_diario * dias_no_mes
+    return resultado
+
+
+def gerar_tabela_fisico_financeiro(
+    projeto: Projeto,
+    data_status: date | None = None,
+    metodo_peso: str | None = None,
+) -> pd.DataFrame:
+    """Monta o cronograma físico-financeiro clássico: uma linha 'Planejado' e uma linha
+    'Realizado' por tarefa, com o % do peso de cada tarefa alocado em cada mês do
+    cronograma — o formato de planilha (tarefas x meses) usado em obras/EPC, com o
+    período de execução marcado mês a mês em vez de um gráfico de barras.
+
+    O peso de cada tarefa é normalizado para % do peso total do cronograma. A coluna
+    'Crítica' identifica a tarefa de origem de cada par de linhas, para filtros na UI.
+    """
+    tarefas = projeto.tarefas_detalhe
+    if data_status is None:
+        data_status = projeto.data_status or date.today()
+
+    tem_custo = projeto.tem_custo
+    if metodo_peso is None:
+        metodo_peso = "custo" if tem_custo else "duracao"
+
+    peso_total = sum(peso_tarefa(t, metodo_peso, tem_custo) for t in tarefas) or 1.0
+
+    datas_relevantes = []
+    for t in tarefas:
+        datas_relevantes += [t.inicio_linha_base, t.termino_linha_base, t.inicio, t.termino]
+    datas_relevantes = [d for d in datas_relevantes if d is not None]
+    if not datas_relevantes:
+        return pd.DataFrame()
+
+    meses = pd.period_range(min(datas_relevantes), max(datas_relevantes), freq="M")
+
+    linhas = []
+    for t in tarefas:
+        peso_pct = peso_tarefa(t, metodo_peso, tem_custo) / peso_total * 100
+
+        planejado_mensal = _distribuir_por_mes(
+            t.inicio_linha_base or t.inicio, t.termino_linha_base or t.termino, peso_pct, meses,
+        )
+        valor_realizado = peso_pct * (t.percentual_concluido / 100)
+        inicio_realizado = t.inicio_real or t.inicio
+        fim_realizado = t.termino_real or (min(t.termino, data_status) if t.termino else data_status)
+        realizado_mensal = _distribuir_por_mes(inicio_realizado, fim_realizado, valor_realizado, meses)
+
+        nome_indentado = "    " * max(t.nivel_esquema - 1, 0) + t.nome
+        for rotulo, valores_mes in (("Planejado", planejado_mensal), ("Realizado", realizado_mensal)):
+            linha = {"Tarefa": nome_indentado, "Crítica": t.critica, "Linha": rotulo, "Peso (%)": peso_pct}
+            for mes in meses:
+                linha[mes.strftime("%b/%y")] = valores_mes.get(mes) or None
+            linhas.append(linha)
+
+    return pd.DataFrame(linhas)
