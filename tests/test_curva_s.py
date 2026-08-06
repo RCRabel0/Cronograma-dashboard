@@ -48,10 +48,13 @@ def test_metodo_peso_editado_muda_total(projeto_com_peso):
 
 def test_ff_estrutura_e_colunas(projeto_com_custo):
     df = gerar_tabela_fisico_financeiro(projeto_com_custo, DATA_STATUS)
-    assert {"Tarefa", "Crítica", "Linha", "Peso (%)"} <= set(df.columns)
+    assert {"WBS", "Tarefa", "Crítica", "Linha", "Peso (%)"} <= set(df.columns)
     assert set(df["Linha"].unique()) == {"Planejado", "Realizado"}
     # Duas linhas (Planejado + Realizado) por tarefa de detalhe.
     assert len(df) == 2 * len(projeto_com_custo.tarefas_detalhe)
+    # 'exemplo_cronograma.xml' é um cronograma plano (todas as tarefas no nível 1), então
+    # o WBS de cada uma é um único número sequencial, sem pontos.
+    assert all("." not in wbs for wbs in df["WBS"])
 
 
 def test_ff_peso_soma_100(projeto_com_custo):
@@ -62,7 +65,7 @@ def test_ff_peso_soma_100(projeto_com_custo):
 
 def test_ff_planejado_soma_bate_peso_da_tarefa(projeto_com_custo):
     df = gerar_tabela_fisico_financeiro(projeto_com_custo, DATA_STATUS)
-    colunas_mes = [c for c in df.columns if c not in ("Tarefa", "Crítica", "Linha", "Peso (%)")]
+    colunas_mes = [c for c in df.columns if c not in ("WBS", "Tarefa", "Crítica", "Linha", "Peso (%)")]
     planejado = df[df["Linha"] == "Planejado"]
     for _, linha in planejado.iterrows():
         soma_meses = sum(v for v in (linha[c] for c in colunas_mes) if v is not None and v == v)
@@ -71,7 +74,7 @@ def test_ff_planejado_soma_bate_peso_da_tarefa(projeto_com_custo):
 
 def test_ff_realizado_reflete_percentual_concluido(projeto_com_custo):
     df = gerar_tabela_fisico_financeiro(projeto_com_custo, DATA_STATUS)
-    colunas_mes = [c for c in df.columns if c not in ("Tarefa", "Crítica", "Linha", "Peso (%)")]
+    colunas_mes = [c for c in df.columns if c not in ("WBS", "Tarefa", "Crítica", "Linha", "Peso (%)")]
     tarefas_por_nome = {t.nome: t for t in projeto_com_custo.tarefas_detalhe}
     realizado = df[df["Linha"] == "Realizado"]
     for _, linha in realizado.iterrows():
@@ -88,3 +91,42 @@ def test_ff_projeto_sem_datas_retorna_vazio():
     projeto = Projeto(nome="Vazio", tarefas=[tarefa_sem_data])
     df = gerar_tabela_fisico_financeiro(projeto, DATA_STATUS)
     assert df.empty
+
+
+def test_ff_wbs_numera_hierarquia_ate_4_niveis():
+    from cronograma.modelos import Projeto, Tarefa
+
+    def _t(uid, nome, nivel, resumo=False, **kwargs):
+        return Tarefa(uid=uid, id=int(uid), nome=nome, nivel_esquema=nivel, resumo=resumo, **kwargs)
+
+    tarefas = [
+        _t("1", "Fase 1", 1, resumo=True),
+        _t("2", "Sub 1.1", 2, resumo=True),
+        _t("3", "Item 1.1.1", 3, resumo=True),
+        _t(
+            "4", "Folha 1.1.1.1", 4,
+            inicio=date(2026, 1, 1), termino=date(2026, 1, 10),
+            inicio_linha_base=date(2026, 1, 1), termino_linha_base=date(2026, 1, 10),
+            duracao_linha_base_horas=80,
+        ),
+        # Um 5º nível deve ser "achatado" no 4º (limite de nivel_maximo=4).
+        _t(
+            "5", "Neta 1.1.1.1.1", 5,
+            inicio=date(2026, 1, 10), termino=date(2026, 1, 15),
+            inicio_linha_base=date(2026, 1, 10), termino_linha_base=date(2026, 1, 15),
+            duracao_linha_base_horas=40,
+        ),
+        _t(
+            "6", "Item 1.1.2", 3,
+            inicio=date(2026, 1, 15), termino=date(2026, 1, 20),
+            inicio_linha_base=date(2026, 1, 15), termino_linha_base=date(2026, 1, 20),
+            duracao_linha_base_horas=40,
+        ),
+    ]
+    projeto = Projeto(nome="Hierárquico", tarefas=tarefas)
+    df = gerar_tabela_fisico_financeiro(projeto, date(2026, 1, 12))
+
+    wbs_por_tarefa = dict(zip(df["Tarefa"], df["WBS"]))
+    assert wbs_por_tarefa["Folha 1.1.1.1"] == "1.1.1.1"
+    assert wbs_por_tarefa["Neta 1.1.1.1.1"] == "1.1.1.2"
+    assert wbs_por_tarefa["Item 1.1.2"] == "1.1.2"

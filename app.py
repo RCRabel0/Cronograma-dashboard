@@ -1823,17 +1823,18 @@ with aba_fisico_financeiro:
             df_ff = df_ff[df_ff["Linha"] != "Realizado"]
 
         # Em cronogramas muito grandes, uma linha por tarefa (x2, Planejado/Realizado)
-        # deixa a tabela lenta de rolar — limita, priorizando as tarefas críticas.
+        # deixa a tabela lenta de rolar — limita, priorizando as tarefas críticas. Usa o
+        # WBS (não o nome) como identificador de tarefa, já que nomes podem se repetir.
         limite_tarefas_ff = 300
-        tarefas_unicas_ff = df_ff["Tarefa"].unique()
+        tarefas_unicas_ff = df_ff["WBS"].unique()
         tarefas_ff_ocultadas = 0
         if len(tarefas_unicas_ff) > limite_tarefas_ff:
             tarefas_ff_ocultadas = len(tarefas_unicas_ff) - limite_tarefas_ff
-            criticidade_por_tarefa = df_ff.groupby("Tarefa")["Crítica"].any()
+            criticidade_por_tarefa = df_ff.groupby("WBS")["Crítica"].any()
             tarefas_mantidas_ff = set(
                 criticidade_por_tarefa.sort_values(ascending=False).index[:limite_tarefas_ff]
             )
-            df_ff = df_ff[df_ff["Tarefa"].isin(tarefas_mantidas_ff)]
+            df_ff = df_ff[df_ff["WBS"].isin(tarefas_mantidas_ff)]
 
         if tarefas_ff_ocultadas:
             st.caption(
@@ -1844,18 +1845,26 @@ with aba_fisico_financeiro:
                 )
             )
 
-        colunas_mes_ff = [c for c in df_ff.columns if c not in ("Tarefa", "Crítica", "Linha", "Peso (%)")]
+        colunas_mes_ff = [c for c in df_ff.columns if c not in ("WBS", "Tarefa", "Crítica", "Linha", "Peso (%)")]
         config_colunas_ff = {
+            "WBS": st.column_config.TextColumn("WBS", width="small"),
             "Peso (%)": st.column_config.NumberColumn(t("Peso (%)", idioma), format="%.1f%%"),
         }
         for col_mes in colunas_mes_ff:
             config_colunas_ff[col_mes] = st.column_config.NumberColumn(col_mes, format="%.1f%%")
 
+        def _estilo_barra_ff(linha):
+            cor = "#2b2b2b" if linha["Linha"] == "Planejado" else "#8a8a8a"
+            return [
+                f"background-color: {cor}; color: white" if col in colunas_mes_ff and pd.notna(linha[col]) else ""
+                for col in linha.index
+            ]
+
         st.dataframe(
-            df_ff,
+            df_ff.style.apply(_estilo_barra_ff, axis=1),
             hide_index=True,
             width="stretch",
-            column_order=["Tarefa", "Linha", "Peso (%)"] + colunas_mes_ff,
+            column_order=["WBS", "Tarefa", "Linha", "Peso (%)"] + colunas_mes_ff,
             column_config=config_colunas_ff,
         )
 

@@ -185,7 +185,7 @@ def test_aba_fisico_financeiro(app):
     aba = _aba_por_rotulo(app, "Físico-Financeiro")
     assert aba.dataframe
     colunas = aba.dataframe[0].value.columns
-    assert {"Tarefa", "Linha", "Peso (%)"} <= set(colunas)
+    assert {"WBS", "Tarefa", "Linha", "Peso (%)"} <= set(colunas)
     assert set(aba.dataframe[0].value["Linha"].unique()) == {"Planejado", "Realizado"}
     rotulos_botoes = [db.label for db in aba.download_button]
     assert any("Físico-Financeiro" in r and "Excel" in r for r in rotulos_botoes)

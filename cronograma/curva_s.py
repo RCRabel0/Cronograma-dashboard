@@ -149,6 +149,25 @@ def _distribuir_por_mes(
     return resultado
 
 
+def _calcular_wbs(tarefas_todas: list, nivel_maximo: int = 4) -> dict:
+    """Gera a numeração WBS (1, 1.1, 1.1.1, 1.1.1.1...) por posição na estrutura de
+    tópicos (nivel_esquema), na ordem em que as tarefas aparecem no arquivo — o mesmo
+    algoritmo que o MS Project usa para numerar automaticamente, limitado a
+    'nivel_maximo' níveis (tarefas mais profundas repetem o código do último nível
+    contado, em vez de gerar um 5º segmento)."""
+    contadores: list[int] = []
+    wbs_por_uid: dict = {}
+    for t in tarefas_todas:
+        nivel = min(max(t.nivel_esquema, 1), nivel_maximo)
+        if nivel > len(contadores):
+            contadores.extend([0] * (nivel - len(contadores)))
+        else:
+            contadores = contadores[:nivel]
+        contadores[nivel - 1] += 1
+        wbs_por_uid[t.uid] = ".".join(str(c) for c in contadores)
+    return wbs_por_uid
+
+
 def gerar_tabela_fisico_financeiro(
     projeto: Projeto,
     data_status: date | None = None,
@@ -160,11 +179,15 @@ def gerar_tabela_fisico_financeiro(
     período de execução marcado mês a mês em vez de um gráfico de barras.
 
     O peso de cada tarefa é normalizado para % do peso total do cronograma. A coluna
-    'Crítica' identifica a tarefa de origem de cada par de linhas, para filtros na UI.
+    'WBS' numera a hierarquia (até o 4º nível) na mesma ordem do arquivo original. A
+    coluna 'Crítica' identifica a tarefa de origem de cada par de linhas, para filtros
+    na UI.
     """
     tarefas = projeto.tarefas_detalhe
     if data_status is None:
         data_status = projeto.data_status or date.today()
+
+    wbs_por_uid = _calcular_wbs(projeto.tarefas)
 
     tem_custo = projeto.tem_custo
     if metodo_peso is None:
@@ -193,9 +216,14 @@ def gerar_tabela_fisico_financeiro(
         fim_realizado = t.termino_real or (min(t.termino, data_status) if t.termino else data_status)
         realizado_mensal = _distribuir_por_mes(inicio_realizado, fim_realizado, valor_realizado, meses)
 
-        nome_indentado = "    " * max(t.nivel_esquema - 1, 0) + t.nome
         for rotulo, valores_mes in (("Planejado", planejado_mensal), ("Realizado", realizado_mensal)):
-            linha = {"Tarefa": nome_indentado, "Crítica": t.critica, "Linha": rotulo, "Peso (%)": peso_pct}
+            linha = {
+                "WBS": wbs_por_uid.get(t.uid, ""),
+                "Tarefa": t.nome,
+                "Crítica": t.critica,
+                "Linha": rotulo,
+                "Peso (%)": peso_pct,
+            }
             for mes in meses:
                 linha[mes.strftime("%b/%y")] = valores_mes.get(mes) or None
             linhas.append(linha)
