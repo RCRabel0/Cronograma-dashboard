@@ -193,7 +193,8 @@ def gerar_tabela_fisico_financeiro(
     """Monta o cronograma físico-financeiro clássico: uma linha 'Planejado' e uma linha
     'Realizado' por tarefa, com o % do peso de cada tarefa alocado em cada mês do
     cronograma — o formato de planilha (tarefas x meses) usado em obras/EPC, com o
-    período de execução marcado mês a mês em vez de um gráfico de barras.
+    período de execução marcado mês a mês em vez de um gráfico de barras. A coluna
+    'Duração (dias)' traz os dias corridos entre início e término (linha de base).
 
     'nivel_maximo_wbs' mostra a hierarquia de forma acumulada: ao escolher o nível N,
     aparecem as tarefas de resumo (fases/grupos) e de detalhe de TODOS os níveis de 1
@@ -236,13 +237,15 @@ def gerar_tabela_fisico_financeiro(
     realizado_agregado: dict = defaultdict(lambda: defaultdict(float))
     critica_agregada: dict = defaultdict(bool)
     atrasada_agregada: dict = defaultdict(bool)
+    inicio_min_agregado: dict = {}
+    termino_max_agregado: dict = {}
 
     for t in tarefas_detalhe:
         peso_pct = peso_tarefa(t, metodo_peso, tem_custo) / peso_total * 100
 
-        planejado_mensal = _distribuir_por_mes(
-            t.inicio_linha_base or t.inicio, t.termino_linha_base or t.termino, peso_pct, meses,
-        )
+        inicio_planejado = t.inicio_linha_base or t.inicio
+        termino_planejado = t.termino_linha_base or t.termino
+        planejado_mensal = _distribuir_por_mes(inicio_planejado, termino_planejado, peso_pct, meses)
         valor_realizado = peso_pct * (t.percentual_concluido / 100)
         inicio_realizado = t.inicio_real or t.inicio
         fim_realizado = t.termino_real or (min(t.termino, data_status) if t.termino else data_status)
@@ -250,7 +253,10 @@ def gerar_tabela_fisico_financeiro(
 
         # Soma a contribuição da tarefa em si e em toda a cadeia de ancestrais (pai,
         # avô...), para que cada resumo visível carregue o total de todas as suas
-        # tarefas-filha, não só as diretas.
+        # tarefas-filha, não só as diretas. A duração de um resumo é calculada aqui
+        # também (do início mais cedo ao término mais tarde entre as tarefas-filha), em
+        # vez de confiar nas datas próprias do resumo no arquivo — nem todo formato
+        # preenche esse rollup de forma confiável nas tarefas de resumo.
         uid = t.uid
         while uid is not None:
             peso_agregado[uid] += peso_pct
@@ -260,6 +266,12 @@ def gerar_tabela_fisico_financeiro(
                 realizado_agregado[uid][mes] += valor
             critica_agregada[uid] = critica_agregada[uid] or t.critica
             atrasada_agregada[uid] = atrasada_agregada[uid] or t.atrasada
+            if inicio_planejado is not None:
+                if uid not in inicio_min_agregado or inicio_planejado < inicio_min_agregado[uid]:
+                    inicio_min_agregado[uid] = inicio_planejado
+            if termino_planejado is not None:
+                if uid not in termino_max_agregado or termino_planejado > termino_max_agregado[uid]:
+                    termino_max_agregado[uid] = termino_planejado
             uid = pai_por_uid.get(uid)
 
     tarefas_visiveis = [t for t in projeto.tarefas if 1 <= t.nivel_esquema <= nivel_maximo_wbs]
@@ -272,6 +284,13 @@ def gerar_tabela_fisico_financeiro(
         realizado_total = sum(realizado_mensal.values())
         pct_concluido = (realizado_total / peso_pct * 100) if peso_pct > 0 else 0.0
 
+        inicio_duracao = inicio_min_agregado.get(t.uid)
+        termino_duracao = termino_max_agregado.get(t.uid)
+        duracao_dias = (
+            (termino_duracao - inicio_duracao).days + 1
+            if inicio_duracao and termino_duracao else None
+        )
+
         for rotulo, valores_mes in (("Planejado", planejado_mensal), ("Realizado", realizado_mensal)):
             linha = {
                 "WBS": wbs_por_uid.get(t.uid, ""),
@@ -281,6 +300,7 @@ def gerar_tabela_fisico_financeiro(
                 "Percentual Concluído": pct_concluido,
                 "Linha": rotulo,
                 "Peso (%)": peso_pct,
+                "Duração (dias)": duracao_dias,
             }
             for mes in meses:
                 # Usa NaN (não None) para célula sem alocação — garante que a coluna

@@ -48,13 +48,24 @@ def test_metodo_peso_editado_muda_total(projeto_com_peso):
 
 def test_ff_estrutura_e_colunas(projeto_com_custo):
     df = gerar_tabela_fisico_financeiro(projeto_com_custo, DATA_STATUS)
-    assert {"WBS", "Tarefa", "Crítica", "Atrasada", "Percentual Concluído", "Linha", "Peso (%)"} <= set(df.columns)
+    assert {
+        "WBS", "Tarefa", "Crítica", "Atrasada", "Percentual Concluído", "Linha", "Peso (%)", "Duração (dias)",
+    } <= set(df.columns)
     assert set(df["Linha"].unique()) == {"Planejado", "Realizado"}
     # Duas linhas (Planejado + Realizado) por tarefa de detalhe.
     assert len(df) == 2 * len(projeto_com_custo.tarefas_detalhe)
     # 'exemplo_cronograma.xml' é um cronograma plano (todas as tarefas no nível 1), então
     # o WBS de cada uma é um único número sequencial, sem pontos.
     assert all("." not in wbs for wbs in df["WBS"])
+
+
+def test_ff_duracao_em_dias_corridos():
+    df = gerar_tabela_fisico_financeiro(_projeto_hierarquico(), date(2026, 1, 31), nivel_maximo_wbs=3)
+    duracao_por_wbs = df[df["Linha"] == "Planejado"].set_index("WBS")["Duração (dias)"]
+    # 'Ativ 1.1.1' vai de 01/01 a 10/01 -> 10 dias corridos (inclusive).
+    assert duracao_por_wbs["1.1.1"] == 10
+    # 'Sub 1.1' (resumo) usa as próprias datas de início/término (01/01 a 20/01) -> 20 dias.
+    assert duracao_por_wbs["1.1"] == 20
 
 
 def test_ff_celula_sem_alocacao_fica_nan_nao_none(projeto_com_custo):
@@ -64,7 +75,10 @@ def test_ff_celula_sem_alocacao_fica_nan_nao_none(projeto_com_custo):
     df = gerar_tabela_fisico_financeiro(projeto_com_custo, DATA_STATUS)
     colunas_mes = [
         c for c in df.columns
-        if c not in ("WBS", "Tarefa", "Crítica", "Atrasada", "Percentual Concluído", "Linha", "Peso (%)")
+        if c not in (
+            "WBS", "Tarefa", "Crítica", "Atrasada", "Percentual Concluído", "Linha", "Peso (%)",
+            "Duração (dias)",
+        )
     ]
     for coluna in colunas_mes:
         assert df[coluna].dtype.kind == "f", f"coluna {coluna} não é float64: {df[coluna].dtype}"
@@ -88,7 +102,10 @@ def test_ff_planejado_soma_bate_peso_da_tarefa(projeto_com_custo):
     df = gerar_tabela_fisico_financeiro(projeto_com_custo, DATA_STATUS)
     colunas_mes = [
         c for c in df.columns
-        if c not in ("WBS", "Tarefa", "Crítica", "Atrasada", "Percentual Concluído", "Linha", "Peso (%)")
+        if c not in (
+            "WBS", "Tarefa", "Crítica", "Atrasada", "Percentual Concluído", "Linha", "Peso (%)",
+            "Duração (dias)",
+        )
     ]
     planejado = df[df["Linha"] == "Planejado"]
     for _, linha in planejado.iterrows():
@@ -100,7 +117,10 @@ def test_ff_realizado_reflete_percentual_concluido(projeto_com_custo):
     df = gerar_tabela_fisico_financeiro(projeto_com_custo, DATA_STATUS)
     colunas_mes = [
         c for c in df.columns
-        if c not in ("WBS", "Tarefa", "Crítica", "Atrasada", "Percentual Concluído", "Linha", "Peso (%)")
+        if c not in (
+            "WBS", "Tarefa", "Crítica", "Atrasada", "Percentual Concluído", "Linha", "Peso (%)",
+            "Duração (dias)",
+        )
     ]
     tarefas_por_nome = {t.nome: t for t in projeto_com_custo.tarefas_detalhe}
     realizado = df[df["Linha"] == "Realizado"]

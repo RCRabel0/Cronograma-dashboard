@@ -425,6 +425,7 @@ TRADUCOES: dict[str, str] = {
         "Showing {limite} of {total} tasks (prioritizing critical ones). Use the filters "
         "above to see the rest.",
     "Peso (%)": "Weight (%)",
+    "Duração (dias)": "Duration (days)",
     "Linha": "Row",
     "Planejado": "Planned",
     "Realizado": "Actual",

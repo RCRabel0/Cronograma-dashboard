@@ -1864,30 +1864,14 @@ with aba_fisico_financeiro:
                 )
             )
 
-        colunas_excluidas_ff = ("WBS", "Tarefa", "Crítica", "Atrasada", "Percentual Concluído", "Linha", "Peso (%)", "Status")
-        colunas_mes_ff = [c for c in df_ff.columns if c not in colunas_excluidas_ff]
-        config_colunas_ff = {
-            "WBS": st.column_config.TextColumn("WBS", width="small"),
-            "Peso (%)": st.column_config.NumberColumn(t("Peso (%)", idioma), format="%.1f%%"),
-        }
-        for col_mes in colunas_mes_ff:
-            config_colunas_ff[col_mes] = st.column_config.NumberColumn(col_mes, format="%.1f%%")
-
-        def _estilo_barra_ff(linha):
-            cor = cores_status.get(linha["Status"], "#5B8DB8")
-            return [
-                f"background-color: {cor}; color: white" if col in colunas_mes_ff and pd.notna(linha[col]) else ""
-                for col in linha.index
-            ]
-
-        st.dataframe(
-            df_ff.style.apply(_estilo_barra_ff, axis=1),
-            hide_index=True,
-            width="stretch",
-            column_order=["WBS", "Tarefa", "Linha", "Status", "Peso (%)"] + colunas_mes_ff,
-            column_config=config_colunas_ff,
+        colunas_excluidas_ff = (
+            "WBS", "Tarefa", "Crítica", "Atrasada", "Percentual Concluído", "Linha", "Peso (%)",
+            "Duração (dias)", "Status",
         )
+        colunas_mes_ff = [c for c in df_ff.columns if c not in colunas_excluidas_ff]
 
+        # Botão de Excel usa os valores numéricos originais (não formatados/mesclados) —
+        # a mesclagem visual abaixo é só para a leitura na tela.
         st.download_button(
             t("⬇️ Baixar Físico-Financeiro (Excel)", idioma),
             data=gerar_excel_tabela(
@@ -1895,6 +1879,47 @@ with aba_fisico_financeiro:
             ),
             file_name=f"fisico_financeiro_{projeto.nome.strip().replace(' ', '_')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
+        # Formata tudo como texto já pronto para exibição (em vez de confiar no
+        # NumberColumn do Streamlit para formatar/branquear NaN) — evita de vez o texto
+        # literal "None"/"nan%" aparecendo em célula sem alocação.
+        def _fmt_pct(v):
+            return f"{v:.1f}%" if pd.notna(v) else ""
+
+        def _fmt_dias(v):
+            return f"{int(v)} dia(s)" if pd.notna(v) else ""
+
+        df_exibir_ff = df_ff.copy()
+        df_exibir_ff["_cor"] = df_exibir_ff["Status"].map(cores_status).fillna("#5B8DB8")
+        df_exibir_ff["Peso (%)"] = df_exibir_ff["Peso (%)"].map(_fmt_pct)
+        df_exibir_ff["Duração (dias)"] = df_exibir_ff["Duração (dias)"].map(_fmt_dias)
+        for col_mes in colunas_mes_ff:
+            df_exibir_ff[col_mes] = df_exibir_ff[col_mes].map(_fmt_pct)
+
+        # Mescla visualmente as linhas Planejado/Realizado do mesmo WBS: não repete
+        # WBS/Tarefa/Status/Peso/Duração na segunda linha do par.
+        primeira_linha_wbs_ff = df_exibir_ff["WBS"] != df_exibir_ff["WBS"].shift()
+        for col in ("WBS", "Tarefa", "Status", "Peso (%)", "Duração (dias)"):
+            df_exibir_ff.loc[~primeira_linha_wbs_ff, col] = ""
+
+        def _estilo_barra_ff(linha):
+            cor = linha["_cor"]
+            return [
+                f"background-color: {cor}; color: white" if col in colunas_mes_ff and linha[col] != "" else ""
+                for col in linha.index
+            ]
+
+        st.dataframe(
+            df_exibir_ff.style.apply(_estilo_barra_ff, axis=1),
+            hide_index=True,
+            width="stretch",
+            column_order=["WBS", "Tarefa", "Linha", "Status", "Peso (%)", "Duração (dias)"] + colunas_mes_ff,
+            column_config={
+                "WBS": st.column_config.TextColumn("WBS", width="small"),
+                "Peso (%)": st.column_config.TextColumn(t("Peso (%)", idioma)),
+                "Duração (dias)": st.column_config.TextColumn(t("Duração (dias)", idioma)),
+            },
         )
 
 with aba_checklist:

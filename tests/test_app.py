@@ -184,11 +184,23 @@ def test_aba_fisico_financeiro(app):
     _upload(app, "exemplo.xml", _ler(RAIZ / "exemplo_cronograma.xml"))
     aba = _aba_por_rotulo(app, "Físico-Financeiro")
     assert aba.dataframe
-    colunas = aba.dataframe[0].value.columns
-    assert {"WBS", "Tarefa", "Linha", "Peso (%)"} <= set(colunas)
-    assert set(aba.dataframe[0].value["Linha"].unique()) == {"Planejado", "Realizado"}
+    df_exibido = aba.dataframe[0].value
+    colunas = df_exibido.columns
+    assert {"WBS", "Tarefa", "Linha", "Status", "Peso (%)", "Duração (dias)"} <= set(colunas)
+    assert set(df_exibido["Linha"].unique()) == {"Planejado", "Realizado"}
     rotulos_botoes = [db.label for db in aba.download_button]
     assert any("Físico-Financeiro" in r and "Excel" in r for r in rotulos_botoes)
+
+    # Bug corrigido: célula sem alocação não deve mostrar o texto literal "None"/"nan%",
+    # e sim ficar em branco (string vazia, já que a tabela exibida é toda texto).
+    assert not (df_exibido.astype(str) == "None").any().any()
+    assert not (df_exibido.astype(str).apply(lambda col: col.str.contains("nan", case=False))).any().any()
+
+    # Linhas Planejado/Realizado do mesmo WBS ficam mescladas visualmente: a segunda
+    # linha do par não repete WBS/Tarefa/Status/Peso/Duração.
+    linhas_realizado = df_exibido[df_exibido["Linha"] == "Realizado"]
+    assert (linhas_realizado["WBS"] == "").all()
+    assert (linhas_realizado["Tarefa"] == "").all()
 
 
 def test_aba_fisico_financeiro_filtro_ocultar_realizado(app):
