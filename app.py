@@ -1957,7 +1957,12 @@ with aba_fisico_financeiro:
             # larguras declaradas (auto-ajusta pelo conteúdo), o que desalinha as
             # colunas congeladas — o deslocamento (left) calculado em Python só bate com
             # a renderização real quando cada coluna tem largura fixa e obedecida.
-            ".ff-table { border-collapse: collapse; table-layout: fixed; min-width: 100%; font-size: 0.85rem; }"
+            # border-collapse:collapse não é confiável junto com position:sticky em
+            # célula de tabela (gera frestas onde o conteúdo que rola por trás aparece)
+            # — usa border-collapse:separate, que renderiza cada célula com sua própria
+            # borda e cobre completamente o que está atrás.
+            ".ff-table { border-collapse: separate; border-spacing: 0; table-layout: fixed; "
+            "min-width: 100%; font-size: 0.85rem; }"
             ".ff-table th, .ff-table td { border: 1px solid rgba(128,128,128,0.35); "
             "padding: 4px 10px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }"
             ".ff-table th { font-weight: 600; }"
