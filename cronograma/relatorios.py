@@ -170,6 +170,105 @@ def gerar_excel_tabela(df: pd.DataFrame, nome_planilha: str = "Tarefas") -> byte
     return buffer.getvalue()
 
 
+_COLUNAS_FIXAS_FF = ["WBS", "Tarefa", "Linha", "Status", "Peso (%)", "Duração (dias)"]
+
+
+def gerar_excel_fisico_financeiro(df: pd.DataFrame) -> bytes:
+    """Gera o Excel do cronograma físico-financeiro reproduzindo a mesma formatação
+    visual da tabela mostrada no app: WBS/Tarefa/Status/Peso/Duração mesclados entre as
+    linhas Planejado e Realizado do mesmo item (célula mesclada de verdade, não só
+    repetida), células de mês coloridas pela mesma paleta de status do Gantt, e
+    cabeçalho + as 6 primeiras colunas congelados (Freeze Panes), com o mesmo recorte
+    dos filtros aplicados na tela.
+    """
+    from openpyxl import Workbook
+
+    colunas_mes = [c for c in df.columns if c not in _COLUNAS_FIXAS_FF + ["Crítica", "Atrasada", "Percentual Concluído"]]
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Fisico-Financeiro"
+
+    fonte_cabecalho = Font(bold=True, color="FFFFFF")
+    preenchimento_cabecalho = PatternFill("solid", fgColor=_COR_CABECALHO)
+    lado = Side(style="thin", color=_COR_BORDA)
+    borda_fina = Border(left=lado, right=lado, top=lado, bottom=lado)
+    alinhamento_centro = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    alinhamento_tarefa = Alignment(horizontal="left", vertical="center", wrap_text=True)
+
+    todas_colunas = _COLUNAS_FIXAS_FF + colunas_mes
+    for col_idx, nome in enumerate(todas_colunas, start=1):
+        celula = ws.cell(row=1, column=col_idx, value=nome)
+        celula.font = fonte_cabecalho
+        celula.fill = preenchimento_cabecalho
+        celula.alignment = alinhamento_centro
+        celula.border = borda_fina
+
+    idx_linha_col = _COLUNAS_FIXAS_FF.index("Linha") + 1
+    linha_planilha = 2
+    idx = 0
+    n_linhas_df = len(df)
+    while idx < n_linhas_df:
+        wbs_atual = df.iloc[idx]["WBS"]
+        fim = idx
+        while fim + 1 < n_linhas_df and df.iloc[fim + 1]["WBS"] == wbs_atual:
+            fim += 1
+        n = fim - idx + 1
+        primeira = df.iloc[idx]
+        cor_status = CORES_STATUS.get(primeira["Status"], "5B8DB8").lstrip("#")
+
+        for col_idx, nome_col in enumerate(_COLUNAS_FIXAS_FF, start=1):
+            if nome_col == "Linha":
+                continue  # não mescla — muda a cada linha (Planejado/Realizado)
+            valor = primeira[nome_col]
+            if nome_col == "Duração (dias)" and pd.notna(valor):
+                valor = f"{int(valor)} dia(s)"
+            celula = ws.cell(row=linha_planilha, column=col_idx, value=valor if pd.notna(valor) else None)
+            celula.border = borda_fina
+            celula.alignment = alinhamento_tarefa if nome_col == "Tarefa" else alinhamento_centro
+            if nome_col == "Peso (%)":
+                celula.number_format = '0.0"%"'
+            if n > 1:
+                ws.merge_cells(
+                    start_row=linha_planilha, end_row=linha_planilha + n - 1, start_column=col_idx, end_column=col_idx,
+                )
+
+        for i in range(n):
+            linha_df = df.iloc[idx + i]
+            r = linha_planilha + i
+            celula_linha = ws.cell(row=r, column=idx_linha_col, value=linha_df["Linha"])
+            celula_linha.border = borda_fina
+            celula_linha.alignment = alinhamento_centro
+            for j, col_mes in enumerate(colunas_mes):
+                col_idx = len(_COLUNAS_FIXAS_FF) + j + 1
+                valor_mes = linha_df[col_mes]
+                celula = ws.cell(row=r, column=col_idx)
+                celula.border = borda_fina
+                celula.alignment = alinhamento_centro
+                if pd.notna(valor_mes):
+                    celula.value = valor_mes
+                    celula.number_format = '0.0"%"'
+                    celula.fill = PatternFill("solid", fgColor=cor_status)
+                    celula.font = Font(color="FFFFFF")
+
+        idx = fim + 1
+        linha_planilha += n
+
+    larguras_fixas = {"WBS": 10, "Tarefa": 40, "Linha": 12, "Status": 18, "Peso (%)": 10, "Duração (dias)": 14}
+    for col_idx, nome in enumerate(_COLUNAS_FIXAS_FF, start=1):
+        ws.column_dimensions[get_column_letter(col_idx)].width = larguras_fixas.get(nome, 12)
+    for j in range(len(colunas_mes)):
+        ws.column_dimensions[get_column_letter(len(_COLUNAS_FIXAS_FF) + j + 1)].width = 9
+
+    # Congela cabeçalho (linha 1) e as 6 primeiras colunas, igual ao 'Congelar Painéis'
+    # já usado na visão em tela.
+    ws.freeze_panes = f"{get_column_letter(len(_COLUNAS_FIXAS_FF) + 1)}2"
+
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    return buffer.getvalue()
+
+
 def tabela_tarefas(projeto: Projeto) -> pd.DataFrame:
     linhas = []
     for t in projeto.tarefas_detalhe:

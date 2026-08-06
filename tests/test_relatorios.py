@@ -17,6 +17,7 @@ from cronograma.portfolio import (
 )
 from cronograma.relatorios import (
     gerar_excel,
+    gerar_excel_fisico_financeiro,
     gerar_excel_portfolio,
     gerar_excel_tabela,
     gerar_pdf,
@@ -106,6 +107,68 @@ def test_excel_tabela_tarefas_reais(projeto_com_custo):
     df = tabela_tarefas(projeto_com_custo)
     ws = _abrir(gerar_excel_tabela(df, "Tarefas"))["Tarefas"]
     assert ws.max_row == len(df) + 1
+
+
+def _df_ff_exemplo():
+    # Uma tarefa (WBS "1") com Planejado/Realizado e um mês sem alocação (NaN), para
+    # verificar mesclagem de célula, cor por status e branco em célula sem valor.
+    return pd.DataFrame(
+        [
+            {
+                "WBS": "1", "Tarefa": "Fundação", "Crítica": True, "Atrasada": False,
+                "Percentual Concluído": 100.0, "Linha": "Planejado", "Peso (%)": 60.0,
+                "Duração (dias)": 10, "Status": "Concluída", "Jan/26": 60.0, "Fev/26": float("nan"),
+            },
+            {
+                "WBS": "1", "Tarefa": "Fundação", "Crítica": True, "Atrasada": False,
+                "Percentual Concluído": 100.0, "Linha": "Realizado", "Peso (%)": 60.0,
+                "Duração (dias)": 10, "Status": "Concluída", "Jan/26": 60.0, "Fev/26": float("nan"),
+            },
+        ]
+    )
+
+
+def test_excel_ff_mescla_celulas_do_mesmo_wbs():
+    wb = _abrir(gerar_excel_fisico_financeiro(_df_ff_exemplo()))
+    ws = wb["Fisico-Financeiro"]
+    faixas_mescladas = {str(r) for r in ws.merged_cells.ranges}
+    # WBS(A), Tarefa(B), Status(D), Peso(E), Duração(F) mesclados entre as linhas 2 e 3
+    # (Planejado/Realizado) — 'Linha' (C) e as colunas de mês NÃO são mescladas.
+    for coluna in ("A", "B", "D", "E", "F"):
+        assert f"{coluna}2:{coluna}3" in faixas_mescladas
+    assert "C2:C3" not in faixas_mescladas
+
+
+def test_excel_ff_celula_de_mes_colorida_por_status():
+    wb = _abrir(gerar_excel_fisico_financeiro(_df_ff_exemplo()))
+    ws = wb["Fisico-Financeiro"]
+    cabecalho = [c.value for c in ws[1]]
+    col_jan = cabecalho.index("Jan/26") + 1
+    col_fev = cabecalho.index("Fev/26") + 1
+    # "Concluída" usa a mesma cor do Gantt/status (#2E8B57).
+    assert ws.cell(row=2, column=col_jan).fill.fgColor.rgb.endswith("2E8B57")
+    # Mês sem alocação (NaN) fica sem cor de preenchimento.
+    assert ws.cell(row=2, column=col_fev).fill.fgColor.rgb in (None, "00000000")
+
+
+def test_excel_ff_congela_cabecalho_e_6_colunas():
+    wb = _abrir(gerar_excel_fisico_financeiro(_df_ff_exemplo()))
+    ws = wb["Fisico-Financeiro"]
+    assert ws.freeze_panes == "G2"
+
+
+def test_excel_ff_duracao_formatada_como_texto():
+    wb = _abrir(gerar_excel_fisico_financeiro(_df_ff_exemplo()))
+    ws = wb["Fisico-Financeiro"]
+    cabecalho = [c.value for c in ws[1]]
+    col_duracao = cabecalho.index("Duração (dias)") + 1
+    assert ws.cell(row=2, column=col_duracao).value == "10 dia(s)"
+
+
+def test_excel_ff_vazio_nao_quebra():
+    colunas = ["WBS", "Tarefa", "Crítica", "Atrasada", "Percentual Concluído", "Linha", "Peso (%)", "Duração (dias)", "Status"]
+    wb = _abrir(gerar_excel_fisico_financeiro(pd.DataFrame(columns=colunas)))
+    assert wb.sheetnames == ["Fisico-Financeiro"]
 
 
 def test_pdf_gera_bytes(projeto_com_custo, indicadores, curva):

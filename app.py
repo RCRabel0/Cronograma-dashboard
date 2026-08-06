@@ -44,6 +44,7 @@ from cronograma.portfolio import (
 )
 from cronograma.relatorios import (
     gerar_excel as _gerar_excel_impl,
+    gerar_excel_fisico_financeiro as _gerar_excel_fisico_financeiro_impl,
     gerar_excel_portfolio as _gerar_excel_portfolio_impl,
     gerar_excel_tabela as _gerar_excel_tabela_impl,
     gerar_pdf as _gerar_pdf_impl,
@@ -124,6 +125,11 @@ def gerar_curva_s_portfolio(projetos, indicadores_por_projeto, metodo_peso=None)
 @st.cache_data(show_spinner=False)
 def gerar_excel_tabela(df, nome_planilha="Tarefas"):
     return _gerar_excel_tabela_impl(df, nome_planilha)
+
+
+@st.cache_data(show_spinner=False)
+def gerar_excel_fisico_financeiro(df):
+    return _gerar_excel_fisico_financeiro_impl(df)
 
 
 @st.cache_data(show_spinner=False)
@@ -1871,13 +1877,11 @@ with aba_fisico_financeiro:
         )
         colunas_mes_ff = [c for c in df_ff.columns if c not in colunas_excluidas_ff]
 
-        # Botão de Excel usa os valores numéricos originais (não formatados/mesclados) —
-        # a mesclagem visual abaixo é só para a leitura na tela.
+        # O Excel reproduz a mesma formatação da tela: WBS/Tarefa/Status/Peso/Duração
+        # mesclados de verdade (não só repetidos) e células de mês coloridas por status.
         st.download_button(
             t("⬇️ Baixar Físico-Financeiro (Excel)", idioma),
-            data=gerar_excel_tabela(
-                df_ff.drop(columns=["Crítica", "Atrasada", "Percentual Concluído"]), "Fisico-Financeiro",
-            ),
+            data=gerar_excel_fisico_financeiro(df_ff),
             file_name=f"fisico_financeiro_{projeto.nome.strip().replace(' ', '_')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
