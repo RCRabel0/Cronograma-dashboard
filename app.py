@@ -1944,14 +1944,20 @@ with aba_fisico_financeiro:
             f'<th{_congelar(2)}>' + escape(t("Linha", idioma)) + f'</th><th{_congelar(3)}>'
             + escape(t("Status", idioma)) + f'</th><th{_congelar(4)}>' + escape(t("Peso (%)", idioma))
             + f'</th><th{_congelar(5)}>' + escape(t("Duração (dias)", idioma)) + "</th>"
-            + "".join(f'<th class="ff-mes">{escape(col_mes)}</th>' for col_mes in colunas_mes_ff)
+            + "".join(
+                f'<th class="ff-mes" style="width:70px">{escape(col_mes)}</th>' for col_mes in colunas_mes_ff
+            )
             + "</tr>"
         )
 
         st.html(
             "<style>"
             ".ff-scroll { max-height: 70vh; overflow: auto; }"
-            ".ff-table { border-collapse: collapse; width: 100%; font-size: 0.85rem; }"
+            # table-layout:fixed é essencial aqui: sem ele, o navegador ignora as
+            # larguras declaradas (auto-ajusta pelo conteúdo), o que desalinha as
+            # colunas congeladas — o deslocamento (left) calculado em Python só bate com
+            # a renderização real quando cada coluna tem largura fixa e obedecida.
+            ".ff-table { border-collapse: collapse; table-layout: fixed; min-width: 100%; font-size: 0.85rem; }"
             ".ff-table th, .ff-table td { border: 1px solid rgba(128,128,128,0.35); "
             "padding: 4px 10px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }"
             ".ff-table th { font-weight: 600; }"
