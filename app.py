@@ -1899,6 +1899,18 @@ with aba_fisico_financeiro:
             else:
                 grupos_ff.append((linha["WBS"], [linha]))
 
+        # Larguras fixas das 6 primeiras colunas — necessárias para calcular o
+        # deslocamento (left) de cada uma ao congelá-las com position:sticky.
+        larguras_congeladas_ff = [70, 260, 90, 140, 80, 110]  # WBS, Tarefa, Linha, Status, Peso, Duração
+        offsets_congelados_ff = []
+        _acumulado_ff = 0
+        for _largura in larguras_congeladas_ff:
+            offsets_congelados_ff.append(_acumulado_ff)
+            _acumulado_ff += _largura
+
+        def _congelar(indice_coluna: int) -> str:
+            return f' class="ff-frozen" style="left:{offsets_congelados_ff[indice_coluna]}px;width:{larguras_congeladas_ff[indice_coluna]}px"'
+
         linhas_html_ff = []
         for _wbs, linhas_grupo in grupos_ff:
             n = len(linhas_grupo)
@@ -1908,13 +1920,14 @@ with aba_fisico_financeiro:
             for i, linha in enumerate(linhas_grupo):
                 celulas = []
                 if i == 0:
-                    celulas.append(f'<td{rowspan_attr}>{escape(str(linha["WBS"]))}</td>')
-                    celulas.append(f'<td{rowspan_attr}>{escape(str(linha["Tarefa"]))}</td>')
-                celulas.append(f'<td>{escape(str(linha["Linha"]))}</td>')
+                    nome_tarefa = escape(str(linha["Tarefa"]))
+                    celulas.append(f'<td{rowspan_attr}{_congelar(0)}>{escape(str(linha["WBS"]))}</td>')
+                    celulas.append(f'<td{rowspan_attr}{_congelar(1)} title="{nome_tarefa}">{nome_tarefa}</td>')
+                celulas.append(f'<td{_congelar(2)}>{escape(str(linha["Linha"]))}</td>')
                 if i == 0:
-                    celulas.append(f'<td{rowspan_attr}>{escape(str(linha["Status"]))}</td>')
-                    celulas.append(f'<td{rowspan_attr}>{_fmt_pct(linha["Peso (%)"])}</td>')
-                    celulas.append(f'<td{rowspan_attr}>{_fmt_dias(linha["Duração (dias)"])}</td>')
+                    celulas.append(f'<td{rowspan_attr}{_congelar(3)}>{escape(str(linha["Status"]))}</td>')
+                    celulas.append(f'<td{rowspan_attr}{_congelar(4)}>{_fmt_pct(linha["Peso (%)"])}</td>')
+                    celulas.append(f'<td{rowspan_attr}{_congelar(5)}>{_fmt_dias(linha["Duração (dias)"])}</td>')
                 for col_mes in colunas_mes_ff:
                     valor_mes = linha[col_mes]
                     if pd.notna(valor_mes):
@@ -1927,22 +1940,30 @@ with aba_fisico_financeiro:
                 linhas_html_ff.append("<tr>" + "".join(celulas) + "</tr>")
 
         cabecalho_ff = (
-            "<tr><th>WBS</th><th>" + escape(t("Tarefa", idioma)) + "</th><th>"
-            + escape(t("Linha", idioma)) + "</th><th>" + escape(t("Status", idioma)) + "</th><th>"
-            + escape(t("Peso (%)", idioma)) + "</th><th>" + escape(t("Duração (dias)", idioma)) + "</th>"
+            f'<tr><th{_congelar(0)}>WBS</th><th{_congelar(1)}>' + escape(t("Tarefa", idioma)) + "</th>"
+            f'<th{_congelar(2)}>' + escape(t("Linha", idioma)) + f'</th><th{_congelar(3)}>'
+            + escape(t("Status", idioma)) + f'</th><th{_congelar(4)}>' + escape(t("Peso (%)", idioma))
+            + f'</th><th{_congelar(5)}>' + escape(t("Duração (dias)", idioma)) + "</th>"
             + "".join(f'<th class="ff-mes">{escape(col_mes)}</th>' for col_mes in colunas_mes_ff)
             + "</tr>"
         )
 
         st.html(
             "<style>"
+            ".ff-scroll { max-height: 70vh; overflow: auto; }"
             ".ff-table { border-collapse: collapse; width: 100%; font-size: 0.85rem; }"
             ".ff-table th, .ff-table td { border: 1px solid rgba(128,128,128,0.35); "
-            "padding: 4px 10px; text-align: left; white-space: nowrap; }"
+            "padding: 4px 10px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }"
             ".ff-table th { font-weight: 600; }"
             ".ff-table td.ff-mes, .ff-table th.ff-mes { text-align: center; }"
+            # Congela a 1ª linha (cabeçalho) e as 6 primeiras colunas, como 'Freeze Panes'
+            # do Excel — usa a cor de fundo do sistema (Canvas) para ficar opaco e se
+            # adaptar automaticamente ao tema claro/escuro do navegador.
+            ".ff-table thead th { position: sticky; top: 0; z-index: 2; background-color: Canvas; }"
+            ".ff-frozen { position: sticky; z-index: 1; background-color: Canvas; }"
+            ".ff-table thead th.ff-frozen { z-index: 3; }"
             "</style>"
-            '<div style="overflow-x:auto"><table class="ff-table"><thead>' + cabecalho_ff + "</thead><tbody>"
+            '<div class="ff-scroll"><table class="ff-table"><thead>' + cabecalho_ff + "</thead><tbody>"
             + "".join(linhas_html_ff) + "</tbody></table></div>"
         )
 
