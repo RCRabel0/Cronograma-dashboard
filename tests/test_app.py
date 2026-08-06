@@ -183,24 +183,23 @@ def test_aba_corrente_critica(app):
 def test_aba_fisico_financeiro(app):
     _upload(app, "exemplo.xml", _ler(RAIZ / "exemplo_cronograma.xml"))
     aba = _aba_por_rotulo(app, "Físico-Financeiro")
-    assert aba.dataframe
-    df_exibido = aba.dataframe[0].value
-    colunas = df_exibido.columns
-    assert {"WBS", "Tarefa", "Linha", "Status", "Peso (%)", "Duração (dias)"} <= set(colunas)
-    assert set(df_exibido["Linha"].unique()) == {"Planejado", "Realizado"}
     rotulos_botoes = [db.label for db in aba.download_button]
     assert any("Físico-Financeiro" in r and "Excel" in r for r in rotulos_botoes)
 
-    # Bug corrigido: célula sem alocação não deve mostrar o texto literal "None"/"nan%",
-    # e sim ficar em branco (string vazia, já que a tabela exibida é toda texto).
-    assert not (df_exibido.astype(str) == "None").any().any()
-    assert not (df_exibido.astype(str).apply(lambda col: col.str.contains("nan", case=False))).any().any()
+    # A tabela é montada como HTML puro (st.html) para permitir célula mesclada de
+    # verdade (rowspan) entre as linhas Planejado/Realizado do mesmo WBS.
+    corpo_html = next(el.proto.body for el in app.get("html") if "ff-table" in el.proto.body)
+    assert "<table" in corpo_html and "rowspan=" in corpo_html
+    for cabecalho in ("WBS", "Tarefa", "Linha", "Status", "Peso (%)", "Duração (dias)"):
+        assert f">{cabecalho}<" in corpo_html
 
-    # Linhas Planejado/Realizado do mesmo WBS ficam mescladas visualmente: a segunda
-    # linha do par não repete WBS/Tarefa/Status/Peso/Duração.
-    linhas_realizado = df_exibido[df_exibido["Linha"] == "Realizado"]
-    assert (linhas_realizado["WBS"] == "").all()
-    assert (linhas_realizado["Tarefa"] == "").all()
+    # Bug corrigido: célula sem alocação não deve mostrar o texto literal "None"/"nan%".
+    assert "None" not in corpo_html
+    assert "nan" not in corpo_html.lower()
+
+    # Cada grupo de WBS tem rowspan="2" (Planejado + Realizado mescladas em uma só
+    # célula de WBS/Tarefa/Status/Peso/Duração) — 'exemplo_cronograma.xml' tem 5 tarefas.
+    assert corpo_html.count('rowspan="2"') == 5 * 5
 
 
 def test_aba_fisico_financeiro_filtro_ocultar_realizado(app):
@@ -210,8 +209,12 @@ def test_aba_fisico_financeiro_filtro_ocultar_realizado(app):
     checkbox_realizado.set_value(False).run(timeout=TIMEOUT)
     assert not app.exception
 
-    aba_depois = _aba_por_rotulo(app, "Físico-Financeiro")
-    assert set(aba_depois.dataframe[0].value["Linha"].unique()) == {"Planejado"}
+    corpo_html = next(el.proto.body for el in app.get("html") if "ff-table" in el.proto.body)
+    assert ">Realizado<" not in corpo_html
+    assert corpo_html.count(">Planejado<") == 5
+    # Com uma única linha por WBS, não há mais o que mesclar (rowspan="1" não existe
+    # em HTML — cada tarefa deixa de precisar de rowspan nenhum).
+    assert "rowspan=" not in corpo_html
 
 
 @pytest.mark.skipif(

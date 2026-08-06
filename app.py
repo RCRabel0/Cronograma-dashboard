@@ -5,6 +5,7 @@ import tempfile
 from collections import defaultdict
 from datetime import date, datetime
 from email.mime.text import MIMEText
+from html import escape
 
 import pandas as pd
 import plotly.express as px
@@ -1881,45 +1882,68 @@ with aba_fisico_financeiro:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
 
-        # Formata tudo como texto já pronto para exibição (em vez de confiar no
-        # NumberColumn do Streamlit para formatar/branquear NaN) — evita de vez o texto
-        # literal "None"/"nan%" aparecendo em célula sem alocação.
+        # st.dataframe (grade) não suporta célula mesclada (rowspan) de verdade — para
+        # que WBS/Tarefa/Status/Peso/Duração apareçam mesclados entre as linhas
+        # Planejado/Realizado do mesmo item, como numa planilha, a tabela é montada como
+        # HTML puro (com <td rowspan>) em vez de st.dataframe.
         def _fmt_pct(v):
             return f"{v:.1f}%" if pd.notna(v) else ""
 
         def _fmt_dias(v):
             return f"{int(v)} dia(s)" if pd.notna(v) else ""
 
-        df_exibir_ff = df_ff.copy()
-        df_exibir_ff["_cor"] = df_exibir_ff["Status"].map(cores_status).fillna("#5B8DB8")
-        df_exibir_ff["Peso (%)"] = df_exibir_ff["Peso (%)"].map(_fmt_pct)
-        df_exibir_ff["Duração (dias)"] = df_exibir_ff["Duração (dias)"].map(_fmt_dias)
-        for col_mes in colunas_mes_ff:
-            df_exibir_ff[col_mes] = df_exibir_ff[col_mes].map(_fmt_pct)
+        grupos_ff = []
+        for _, linha in df_ff.reset_index(drop=True).iterrows():
+            if grupos_ff and grupos_ff[-1][0] == linha["WBS"]:
+                grupos_ff[-1][1].append(linha)
+            else:
+                grupos_ff.append((linha["WBS"], [linha]))
 
-        # Mescla visualmente as linhas Planejado/Realizado do mesmo WBS: não repete
-        # WBS/Tarefa/Status/Peso/Duração na segunda linha do par.
-        primeira_linha_wbs_ff = df_exibir_ff["WBS"] != df_exibir_ff["WBS"].shift()
-        for col in ("WBS", "Tarefa", "Status", "Peso (%)", "Duração (dias)"):
-            df_exibir_ff.loc[~primeira_linha_wbs_ff, col] = ""
+        linhas_html_ff = []
+        for _wbs, linhas_grupo in grupos_ff:
+            n = len(linhas_grupo)
+            rowspan_attr = f' rowspan="{n}"' if n > 1 else ""
+            primeira = linhas_grupo[0]
+            cor = cores_status.get(primeira["Status"], "#5B8DB8")
+            for i, linha in enumerate(linhas_grupo):
+                celulas = []
+                if i == 0:
+                    celulas.append(f'<td{rowspan_attr}>{escape(str(linha["WBS"]))}</td>')
+                    celulas.append(f'<td{rowspan_attr}>{escape(str(linha["Tarefa"]))}</td>')
+                celulas.append(f'<td>{escape(str(linha["Linha"]))}</td>')
+                if i == 0:
+                    celulas.append(f'<td{rowspan_attr}>{escape(str(linha["Status"]))}</td>')
+                    celulas.append(f'<td{rowspan_attr}>{_fmt_pct(linha["Peso (%)"])}</td>')
+                    celulas.append(f'<td{rowspan_attr}>{_fmt_dias(linha["Duração (dias)"])}</td>')
+                for col_mes in colunas_mes_ff:
+                    valor_mes = linha[col_mes]
+                    if pd.notna(valor_mes):
+                        celulas.append(
+                            f'<td class="ff-mes" style="background-color:{cor};color:#fff">'
+                            f'{_fmt_pct(valor_mes)}</td>'
+                        )
+                    else:
+                        celulas.append('<td class="ff-mes"></td>')
+                linhas_html_ff.append("<tr>" + "".join(celulas) + "</tr>")
 
-        def _estilo_barra_ff(linha):
-            cor = linha["_cor"]
-            return [
-                f"background-color: {cor}; color: white" if col in colunas_mes_ff and linha[col] != "" else ""
-                for col in linha.index
-            ]
+        cabecalho_ff = (
+            "<tr><th>WBS</th><th>" + escape(t("Tarefa", idioma)) + "</th><th>"
+            + escape(t("Linha", idioma)) + "</th><th>" + escape(t("Status", idioma)) + "</th><th>"
+            + escape(t("Peso (%)", idioma)) + "</th><th>" + escape(t("Duração (dias)", idioma)) + "</th>"
+            + "".join(f'<th class="ff-mes">{escape(col_mes)}</th>' for col_mes in colunas_mes_ff)
+            + "</tr>"
+        )
 
-        st.dataframe(
-            df_exibir_ff.style.apply(_estilo_barra_ff, axis=1),
-            hide_index=True,
-            width="stretch",
-            column_order=["WBS", "Tarefa", "Linha", "Status", "Peso (%)", "Duração (dias)"] + colunas_mes_ff,
-            column_config={
-                "WBS": st.column_config.TextColumn("WBS", width="small"),
-                "Peso (%)": st.column_config.TextColumn(t("Peso (%)", idioma)),
-                "Duração (dias)": st.column_config.TextColumn(t("Duração (dias)", idioma)),
-            },
+        st.html(
+            "<style>"
+            ".ff-table { border-collapse: collapse; width: 100%; font-size: 0.85rem; }"
+            ".ff-table th, .ff-table td { border: 1px solid rgba(128,128,128,0.35); "
+            "padding: 4px 10px; text-align: left; white-space: nowrap; }"
+            ".ff-table th { font-weight: 600; }"
+            ".ff-table td.ff-mes, .ff-table th.ff-mes { text-align: center; }"
+            "</style>"
+            '<div style="overflow-x:auto"><table class="ff-table"><thead>' + cabecalho_ff + "</thead><tbody>"
+            + "".join(linhas_html_ff) + "</tbody></table></div>"
         )
 
 with aba_checklist:
